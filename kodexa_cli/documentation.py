@@ -273,7 +273,7 @@ def build_releases():
         ```
         """
 
-            Path(f"docs/releases/releases.md").write_text(textwrap.dedent(markdown))
+            Path(f"docs/releases/index.md").write_text(textwrap.dedent(markdown))
         return True
     else:
         return False
