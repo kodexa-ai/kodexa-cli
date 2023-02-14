@@ -95,7 +95,7 @@ def generate_documentation(metadata_components):
     mkdocs['nav'].append({'Reference': new_reference})
 
     if build_releases():
-        mkdocs['nav'].append({'Releases': 'releases/releases.md'})
+        mkdocs['nav'].append({'Releases': 'releases/releases'})
 
     with open("mkdocs.yml", "w") as mkdocs_file:
         mkdocs_file.write(yaml.dump(mkdocs))
