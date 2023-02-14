@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "kodexa-cli"
-version = "6.0.34a1"
+version = "6.0.34a2"
 description = "Command Line Tools for Kodexa"
 authors = ["Austin Redenbaugh <austin@kodexa.com>", "Philip Dodds <philip@kodexa.com>", "Romar Cablao <rcablao@kodexa.com>", "Amadea Paula Dodds <amadeapaula@kodexa.com>"]
 readme = "README.md"
