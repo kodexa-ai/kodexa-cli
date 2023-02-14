@@ -67,9 +67,7 @@ def generate_documentation(metadata_components):
         mkdocs = {'site_name': 'Docs', 'nav': []}
 
     for reference in mkdocs['nav']:
-        if 'Reference' in reference:
-            mkdocs['nav'].remove(reference)
-        if 'Releases' in reference:
+        if 'Reference' in reference or 'Releases' in reference:
             mkdocs['nav'].remove(reference)
 
     COMPONENT_NAME_DICT = {
