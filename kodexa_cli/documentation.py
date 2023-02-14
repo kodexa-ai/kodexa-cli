@@ -227,6 +227,7 @@ def build_releases():
 
         import yaml
         import requests
+        import textwrap
 
         with open('releases.yml') as f:
             releases = yaml.load(f, Loader=yaml.FullLoader)
@@ -254,8 +255,8 @@ def build_releases():
         
         In order to use this release in a private environment you can download the following files:
             
-        [Kuberneretes]({release['version']}-kubernetes.json)
-        [AWS Lambda]({release['version']}-lambda.json)
+        * [Kubernetes]({release['version']}-kubernetes.json)
+        * [AWS Lambda]({release['version']}-lambda.json)
         
         You can then use the following commands to install.
         
@@ -272,7 +273,7 @@ def build_releases():
         ```
         """
 
-        Path(f"docs/releases/releases.md").write_text(markdown)
+            Path(f"docs/releases/releases.md").write_text(textwrap.dedent(markdown))
         return True
     else:
         return False
