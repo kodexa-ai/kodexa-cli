@@ -19,6 +19,7 @@ from typing import Optional
 import click
 import wrapt
 import yaml
+from kodexa.platform.client import DEFAULT_COLUMNS
 from rich import print
 
 logging.root.addHandler(logging.StreamHandler(sys.stdout))
@@ -198,6 +199,9 @@ def deploy(_: Info, org: Optional[str], file: str, url: str, token: str, format=
             else:
                 raise Exception("Unsupported file type")
 
+    if 'deployed' in obj:
+        del obj['deployed']
+
     overlay_obj = None
 
     if overlay is not None:
@@ -293,7 +297,8 @@ def get(_: Info, object_type: str, ref: Optional[str], url: str, token: str, que
             elif format == 'yaml':
                 print(Syntax(object_instance.yaml(indent=4), "yaml"))
         else:
-            objects_endpoint.print_table(query=query, page=page, page_size=pagesize, sort=sort)
+            # objects_endpoint.print_table(query=query, page=page, page_size=pagesize, sort=sort)
+            print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort)
     else:
 
         if ref and not ref.isspace():
@@ -309,10 +314,46 @@ def get(_: Info, object_type: str, ref: Optional[str], url: str, token: str, que
 
                 organization = client.organizations.find_by_slug(ref)
                 objects_endpoint = client.get_object_type(object_type, organization)
-                objects_endpoint.print_table(query=query, page=page, page_size=pagesize, sort=sort)
+                print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort)
+                # objects_endpoint.print_table(query=query, page=page, page_size=pagesize, sort=sort)
         else:
 
             print(f"You must provide a ref to get a specific object")
+
+
+def print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort):
+    """
+    Print the output of the list in a table form
+
+    """
+    from rich.table import Table
+
+    table = Table(title=f"Listing {object_metadata['plural']}", title_style='bold blue')
+    # Get column list for the referenced object
+    column_list = DEFAULT_COLUMNS[object_metadata['plural']]
+
+    # Create column header for the table
+    for col in column_list:
+        table.add_column(col)
+
+    page_of_object_endpoints = objects_endpoint.list(query=query, page=page, page_size=pagesize, sort=sort)
+    # Get column values
+    for objects_endpoint in page_of_object_endpoints.content:
+        row = []
+        for col in column_list:
+            try:
+                value = str(getattr(objects_endpoint, col))
+                row.append(value)
+            except AttributeError:
+                row.append("")
+        table.add_row(*row, style='yellow')
+
+    from rich.console import Console
+    console = Console()
+    console.print(table)
+    console.print(
+        f"Page [bold]{page_of_object_endpoints.number}[/bold] of [bold]{page_of_object_endpoints.total_pages}[/bold] "
+        f"(total of {page_of_object_endpoints.total_elements} objects)")
 
 
 @cli.command()
@@ -506,6 +547,7 @@ def mkdocs(_: Info, files: list[str]):
     file_pattern is the pattern to use to find the kodexa.yml files (default is **/kodexa.yml)
 
     """
+
     class Loader(yaml.SafeLoader):
         pass
 
