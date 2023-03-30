@@ -99,8 +99,9 @@ def cli(info: Info, verbose: int):
 @click.argument('project_id', required=True)
 @click.option('--url', default=KodexaPlatform.get_url(), help='The URL to the Kodexa server')
 @click.option('--token', default=KodexaPlatform.get_access_token(), help='Access token')
+@click.option('--profile', default=None, help='The profile to used to access url and token')
 @pass_info
-def project(_: Info, project_id: str, token: str, url: str):
+def project(_: Info, project_id: str, token: str, url: str, profile: Optional[str] = None):
     """
     Get details for a specific project.
 
@@ -108,7 +109,7 @@ def project(_: Info, project_id: str, token: str, url: str):
 
     """
 
-    client = KodexaClient(url=url, access_token=token)
+    client = KodexaClient(url=url, access_token=token) if not profile else KodexaClient(profile=profile)
     project_instance = client.get_project(project_id)
     print(f"Name: [bold]{project_instance.name}[/bold]")
     print(f"Description: [bold]{project_instance.description}[/bold]\n")
@@ -128,16 +129,17 @@ def project(_: Info, project_id: str, token: str, url: str):
 @click.argument('paths', required=True, nargs=-1)
 @click.option('--url', default=KodexaPlatform.get_url(), help='The URL to the Kodexa server')
 @click.option('--token', default=KodexaPlatform.get_access_token(), help='Access token')
+@click.option('--profile', default=None, help='The profile to used to access url and token')
 @pass_info
-def upload(_: Info, ref: str, paths: list[str], token: str, url: str):
+def upload(_: Info, ref: str, paths: list[str], token: str, url: str, profile: Optional[str] = None):
     """
     Upload a file to the Kodexa platform.
 
     ref is the reference to the document store to upload to.
     path is the path to the file to upload, it can be many files.
     """
+    client = KodexaClient(url=url, access_token=token) if not profile else KodexaClient(profile=profile)
 
-    client = KodexaClient(url=url, access_token=token)
     document_store = client.get_object_by_ref('store', ref)
 
     from kodexa.platform.client import DocumentStoreEndpoint
@@ -171,14 +173,15 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str):
 @click.option('--token', default=KodexaPlatform.get_access_token(), help='Access token')
 @click.option('--format', default=None, help='The format to input if from stdin (json, yaml)')
 @click.option('--overlay', default=None, help='A JSON or YAML file that will overlay the metadata')
+@click.option('--profile', default=None, help='The profile to used to access url and token')
 @pass_info
 def deploy(_: Info, org: Optional[str], file: str, url: str, token: str, format=None, update: bool = False,
-           version=None, overlay: Optional[str] = None, slug=None):
+           version=None, overlay: Optional[str] = None, profile: Optional[str] = None, slug=None):
     """
     Deploy a component to a Kodexa platform instance from a file or stdin
     """
 
-    client = KodexaClient(access_token=token, url=url)
+    client = KodexaClient(url=url, access_token=token) if not profile else KodexaClient(profile=profile)
 
     obj = None
     if file is None:
@@ -250,6 +253,7 @@ def deploy(_: Info, org: Optional[str], file: str, url: str, token: str, format=
 @click.argument('execution_id', required=True)
 @click.option('--url', default=KodexaPlatform.get_url(), help='The URL to the Kodexa server')
 @click.option('--token', default=KodexaPlatform.get_access_token(), help='Access token')
+@click.option('--profile', default=None, help='The profile to used to access url and token')
 @pass_info
 def logs(_: Info, execution_id: str, url: str, token: str):
     """
@@ -257,7 +261,7 @@ def logs(_: Info, execution_id: str, url: str, token: str):
 
     execution_id is the id of the execution to get the logs for
     """
-    client = KodexaClient(url=url, access_token=token)
+    client = KodexaClient(url=url, access_token=token) if not profile else KodexaClient(profile=profile)
     client.executions.get(execution_id).logs()
 
 
@@ -272,9 +276,10 @@ def logs(_: Info, execution_id: str, url: str, token: str):
 @click.option('--page', default=1, help='Page number')
 @click.option('--pageSize', default=10, help='Page size')
 @click.option('--sort', default=None, help='Sort by (ie. startDate:desc)')
+@click.option('--profile', default=None, help='The profile to used to access url and token')
 @pass_info
 def get(_: Info, object_type: str, ref: Optional[str], url: str, token: str, query: str, path: str = None, format=None,
-        page: int = 1, pagesize: int = 10, sort: str = None):
+        page: int = 1, pagesize: int = 10, sort: str = None, profile: Optional[str] = None):
     """
     List the instances of the component or entity type
 
@@ -282,7 +287,7 @@ def get(_: Info, object_type: str, ref: Optional[str], url: str, token: str, que
     ref is the reference to the object
     """
 
-    client = KodexaClient(url=url, access_token=token)
+    client = KodexaClient(url=url, access_token=token) if not profile else KodexaClient(profile=profile)
 
     from kodexa.platform.client import resolve_object_type
     object_name, object_metadata = resolve_object_type(object_type)
@@ -370,9 +375,10 @@ def print_object_table(object_metadata, objects_endpoint, query, page, pagesize,
 @click.option('--page', default=1, help='Page number')
 @click.option('--pageSize', default=10, help='Page size')
 @click.option('--sort', default=None, help='Sort by ie. name:asc')
+@click.option('--profile', default=None, help='The profile to used to access url and token')
 @pass_info
 def query(_: Info, query: str, ref: str, url: str, token: str, download: bool, download_native: bool, page: int,
-          pagesize: int, sort: None):
+          pagesize: int, sort: None, profile: Optional[str] = None):
     """
     Query the documents in a given document store
 
@@ -380,7 +386,7 @@ def query(_: Info, query: str, ref: str, url: str, token: str, download: bool, d
     query is the query to run
 
     """
-    client = KodexaClient(url=url, access_token=token)
+    client = KodexaClient(url=url, access_token=token) if not profile else KodexaClient(profile=profile)
     from kodexa.platform.client import DocumentStoreEndpoint
 
     document_store: DocumentStoreEndpoint = client.get_object_by_ref('store', ref)
@@ -396,14 +402,15 @@ def query(_: Info, query: str, ref: str, url: str, token: str, download: bool, d
 @click.option('--url', default=KodexaPlatform.get_url(), help='The URL to the Kodexa server')
 @click.option('--token', default=KodexaPlatform.get_access_token(), help='Access token')
 @click.option('--output', help='The path to export to')
+@click.option('--profile', default=None, help='The profile to used to access url and token')
 @pass_info
-def export_project(_: Info, project_id: str, url: str, token: str, output: str):
+def export_project(_: Info, project_id: str, url: str, token: str, output: str, profile: Optional[str] = None):
     """
     Export a project, and associated resources to a local zip file
 
     project_id is the id of the project to export
     """
-    client = KodexaClient(url, token)
+    client = KodexaClient(url=url, access_token=token) if not profile else KodexaClient(profile=profile)
     project_endpoint = client.projects.get(project_id)
     client.export_project(project_endpoint, output)
 
@@ -413,8 +420,9 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str):
 @click.argument('path', required=True)
 @click.option('--url', default=KodexaPlatform.get_url(), help='The URL to the Kodexa server')
 @click.option('--token', default=KodexaPlatform.get_access_token(), help='Access token')
+@click.option('--profile', default=None, help='The profile to used to access url and token')
 @pass_info
-def import_project(_: Info, org_slug: str, url: str, token: str, path: str):
+def import_project(_: Info, org_slug: str, url: str, token: str, path: str, profile: Optional[str] = None):
     """
     Import a project, and associated resources from a local zip file
 
@@ -424,7 +432,7 @@ def import_project(_: Info, org_slug: str, url: str, token: str, path: str):
     """
     print("Importing project from {}".format(path))
 
-    client = KodexaClient(url, token)
+    client = KodexaClient(url=url, access_token=token) if not profile else KodexaClient(profile=profile)
     organization = client.organizations.find_by_slug(org_slug)
 
     print("Organization: {}".format(organization.name))
@@ -440,8 +448,10 @@ def import_project(_: Info, org_slug: str, url: str, token: str, path: str):
 @click.option('--token', default=KodexaPlatform.get_access_token(), help='Access token')
 @click.option('--file', help='The path to the file containing the event to send')
 @click.option('--format', default=None, help='The format to use if from stdin (json, yaml)')
+@click.option('--profile', default=None, help='The profile to used to access url and token')
 @pass_info
-def send_event(_: Info, project_id: str, assistant_id: str, url: str, file: str, event_format: str, token: str):
+def send_event(_: Info, project_id: str, assistant_id: str, url: str, file: str, event_format: str, token: str,
+               profile: Optional[str] = None):
     """
     Send an event to an assistant
 
@@ -450,7 +460,7 @@ def send_event(_: Info, project_id: str, assistant_id: str, url: str, file: str,
 
     """
 
-    client = KodexaClient(url, token)
+    client = KodexaClient(url=url, access_token=token) if not profile else KodexaClient(profile=profile)
 
     obj = None
     if file is None:
@@ -481,22 +491,24 @@ def send_event(_: Info, project_id: str, assistant_id: str, url: str, file: str,
 @cli.command()
 @pass_info
 @click.option('--python/--no-python', default=False, help='Print out the header for a Python file')
-def platform(_: Info, python: bool):
+@click.option('--profile', default=None, help='The profile to used to access url and token')
+def platform(_: Info, python: bool, profile: Optional[str] = None):
     """
     Get the details for the Kodexa instance we are logged into
     """
-    platform_url = KodexaPlatform.get_url()
+    platform_url = KodexaPlatform.get_url(profile)
 
     if platform_url is not None:
-        print(f"Kodexa URL: {KodexaPlatform.get_url()}")
-        print(f"Access Token: {KodexaPlatform.get_access_token()}")
+        print(f"Kodexa URL: {KodexaPlatform.get_url(profile)}")
+        print(f"Access Token: {KodexaPlatform.get_access_token(profile)}")
         kodexa_version = KodexaPlatform.get_server_info()
         print(f"Version: {kodexa_version['version']}")
         print(f"Release: {kodexa_version['release']}")
         if python:
             print("\nPython example:\n\n")
             print(f"from kodexa import *")
-            print(f"client = KodexaClient('{KodexaPlatform.get_url()}', '{KodexaPlatform.get_access_token()}')")
+            print(f"client = KodexaClient('{KodexaPlatform.get_url(profile)}', "
+                  f"'{KodexaPlatform.get_access_token(profile)}')")
     else:
         print("Kodexa is not logged in")
 
@@ -506,15 +518,16 @@ def platform(_: Info, python: bool):
 @click.argument('ref')
 @click.option('--url', default=KodexaPlatform.get_url(), help='The URL to the Kodexa server')
 @click.option('--token', default=KodexaPlatform.get_access_token(), help='Access token')
+@click.option('--profile', default=None, help='The profile to used to access url and token')
 @pass_info
-def delete(_: Info, object_type: str, ref: str, url: str, token: str):
+def delete(_: Info, object_type: str, ref: str, url: str, token: str, profile: Optional[str] = None):
     """
     Delete the given resource (based on ref)
 
     object_type is the type of object to delete (e.g. 'project', 'assistant', 'store')
     ref is the ref of the object to delete
     """
-    client = KodexaClient(url, token)
+    client = KodexaClient(url=url, access_token=token) if not profile else KodexaClient(profile=profile)
     client.get_object_by_ref(object_type, ref).delete()
 
 
@@ -535,10 +548,11 @@ def login(_: Info):
             kodexa_url = "https://platform.kodexa.com"
         username = input("Enter your email: ")
         password = getpass("Enter your password: ")
+        profile = input("Login profile name: ")
     except Exception as error:
         print('ERROR', error)
     else:
-        KodexaPlatform.login(kodexa_url, username, password)
+        KodexaPlatform.login(kodexa_url, username, password, profile)
 
 
 @cli.command()
