@@ -255,7 +255,7 @@ def deploy(_: Info, org: Optional[str], file: str, url: str, token: str, format=
 @click.option('--token', default=KodexaPlatform.get_access_token(), help='Access token')
 @click.option('--profile', default=None, help='The profile to used to access url and token')
 @pass_info
-def logs(_: Info, execution_id: str, url: str, token: str):
+def logs(_: Info, execution_id: str, url: str, token: str, profile: Optional[str] = None):
     """
     Get the logs for a specific execution
 
