@@ -410,6 +410,7 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str, 
 
     project_id is the id of the project to export
     """
+
     client = KodexaClient(url=url, access_token=token) if not profile else KodexaClient(profile=profile)
     project_endpoint = client.projects.get(project_id)
     client.export_project(project_endpoint, output)
