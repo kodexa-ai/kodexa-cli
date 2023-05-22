@@ -549,7 +549,9 @@ def login(_: Info):
             kodexa_url = "https://platform.kodexa.com"
         username = input("Enter your email: ")
         password = getpass("Enter your password: ")
-        profile = input("Login profile name: ")
+        profile = input("Login profile name [None]: ")
+        if not profile:
+            profile = None
     except Exception as error:
         print('ERROR', error)
     else:
