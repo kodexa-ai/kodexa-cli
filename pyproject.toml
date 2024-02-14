@@ -17,6 +17,7 @@ PyYAML = "^6.0"
 rich = "^13.7.0"
 wrapt = "^1.15.0"
 jinja2 = "^3.1.2"
+clirunner = "^0.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.0"

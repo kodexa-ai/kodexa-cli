@@ -219,8 +219,9 @@ def safe_entry_point():
 )
 @click.option("--threads", default=5, help="Number of threads to use")
 @click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--profile", default="default", help="The profile to use (default)")
 @pass_info
-def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int):
+def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int, profile="default"):
     """
     Upload a file to the Kodexa platform.
 
@@ -229,7 +230,7 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
     threads is the number of threads to use for the upload (default is 5)
     """
 
-    client = KodexaClient(url=url, access_token=token)
+    client = KodexaClient(url=url, access_token=token, profile=profile)
     document_store = client.get_object_by_ref("store", ref)
 
     from kodexa.platform.client import DocumentStoreEndpoint
@@ -251,9 +252,9 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
         with ThreadPoolExecutor(max_workers=threads) as executor:
             # Map the upload function to each file path
             for result in track(
-                executor.map(upload_file, paths),
-                total=len(paths),
-                description="Uploading files",
+                    executor.map(upload_file, paths),
+                    total=len(paths),
+                    description="Uploading files",
             ):
                 print(result)
         print("Upload complete :tada:")
@@ -291,26 +292,28 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
 @click.option(
     "--overlay", default=None, help="A JSON or YAML file that will overlay the metadata"
 )
+@click.option("--profile", default="default", help="The profile to use (default)")
 @click.argument("files", nargs=-1)
 @pass_info
 def deploy(
-    _: Info,
-    org: Optional[str],
-    file: str,
-    files: list[str],
-    url: str,
-    token: str,
-    format=None,
-    update: bool = False,
-    version=None,
-    overlay: Optional[str] = None,
-    slug=None,
+        _: Info,
+        org: Optional[str],
+        file: str,
+        files: list[str],
+        url: str,
+        token: str,
+        format=None,
+        update: bool = False,
+        version=None,
+        overlay: Optional[str] = None,
+        profile: str = "default",
+        slug=None,
 ):
     """
     Deploy a component to a Kodexa platform instance from a file or stdin
     """
 
-    client = KodexaClient(access_token=token, url=url)
+    client = KodexaClient(access_token=token, url=url, profile=profile)
 
     def deploy_obj(obj):
         if "deployed" in obj:
@@ -372,7 +375,7 @@ def deploy(
         from rich.progress import track
 
         for idx in track(
-            range(len(files)), description=f"Deploying {len(files)} files"
+                range(len(files)), description=f"Deploying {len(files)} files"
         ):
             obj = {}
             file = files[idx]
@@ -416,14 +419,15 @@ def deploy(
     "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--profile", default="default", help="The profile to use (default)")
 @pass_info
-def logs(_: Info, execution_id: str, url: str, token: str):
+def logs(_: Info, execution_id: str, url: str, token: str, profile="default"):
     """
     Get the logs for a specific execution
 
     execution_id is the id of the execution to get the logs for
     """
-    client = KodexaClient(url=url, access_token=token)
+    client = KodexaClient(url=url, access_token=token, profile=profile)
     response = client.executions.get(execution_id).logs()
 
     if response.status_code == 200:  # Check if the response is successful
@@ -441,13 +445,14 @@ def logs(_: Info, execution_id: str, url: str, token: str):
     "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--profile", default="default", help="The profile to use (default)")
 @pass_info
-def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str):
+def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str, profile: str = "default"):
     """
     Download the implementation of a model store
     """
     # We are going to download the implementation of the component
-    client = KodexaClient(url=url, access_token=token)
+    client = KodexaClient(url=url, access_token=token, profile=profile)
     model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
     model_store_endpoint.download_implementation(output_file)
 
@@ -464,18 +469,20 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
 @click.option("--page", default=1, help="Page number")
 @click.option("--pageSize", default=10, help="Page size")
 @click.option("--sort", default=None, help="Sort by (ie. startDate:desc)")
+@click.option("--profile", default="default", help="The profile to use (default)")
 @pass_info
 def get(
-    _: Info,
-    object_type: str,
-    ref: Optional[str],
-    url: str,
-    token: str,
-    query: str,
-    format=None,
-    page: int = 1,
-    pagesize: int = 10,
-    sort: str = None,
+        _: Info,
+        object_type: str,
+        ref: Optional[str],
+        url: str,
+        token: str,
+        query: str,
+        format=None,
+        page: int = 1,
+        pagesize: int = 10,
+        sort: str = None,
+        profile: str = "default",
 ):
     """
     List the instances of the component or entity type
@@ -484,7 +491,7 @@ def get(
     ref is the reference to the object
     """
 
-    client = KodexaClient(url=url, access_token=token)
+    client = KodexaClient(url=url, access_token=token, profile=profile)
 
     from kodexa.platform.client import resolve_object_type
 
@@ -498,8 +505,8 @@ def get(
 
             if format == "json":
                 print(
-                        json.dumps(object_instance.model_dump(by_alias=True), indent=4),
-                        "json",
+                    json.dumps(object_instance.model_dump(by_alias=True), indent=4),
+                    "json",
                 )
                 GLOBAL_IGNORE_COMPLETE = True
             elif format == "yaml":
@@ -655,25 +662,27 @@ def print_object_table(object_metadata, objects_endpoint, query, page, pagesize,
     type=int,
 )
 @click.option("--sort", default=None, help="Sort by ie. name:asc")
+@click.option("--profile", default="default", help="The profile to use (default)")
 @pass_info
 def query(
-    _: Info,
-    query: list[str],
-    ref: str,
-    url: str,
-    token: str,
-    download: bool,
-    download_native: bool,
-    page: int,
-    pagesize: int,
-    sort: None,
-    filter: None,
-    reprocess: Optional[str] = None,
-    delete: bool = False,
-    stream: bool = False,
-    threads: int = 5,
-    limit: Optional[int] = None,
-    watch: Optional[int] = None,
+        _: Info,
+        query: list[str],
+        ref: str,
+        url: str,
+        token: str,
+        download: bool,
+        download_native: bool,
+        page: int,
+        pagesize: int,
+        sort: None,
+        filter: None,
+        reprocess: Optional[str] = None,
+        delete: bool = False,
+        stream: bool = False,
+        threads: int = 5,
+        limit: Optional[int] = None,
+        watch: Optional[int] = None,
+        profile: str = None
 ):
     """
     Query the documents in a given document store
@@ -684,7 +693,7 @@ def query(
     delete will delete the document families that match the query
 
     """
-    client = KodexaClient(url=url, access_token=token)
+    client = KodexaClient(url=url, access_token=token, profile=profile)
     from kodexa.platform.client import DocumentStoreEndpoint
 
     query = " ".join(list(query))
@@ -758,7 +767,7 @@ def query(
             )
 
             if delete and not Confirm.ask(
-                "You are sure you want to delete these families (this action can not be reverted)?"
+                    "You are sure you want to delete these families (this action can not be reverted)?"
             ):
                 print("Aborting delete")
                 exit(1)
@@ -777,7 +786,7 @@ def query(
             if stream:
                 print(f"Streaming document families (with {threads} threads)")
                 with concurrent.futures.ThreadPoolExecutor(
-                    max_workers=threads
+                        max_workers=threads
                 ) as executor:
 
                     def process_family(document_family):
@@ -822,14 +831,15 @@ def query(
 )
 @click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
 @click.option("--output", help="The path to export to")
+@click.option("--profile", default="default", help="The profile to use (default)")
 @pass_info
-def export_project(_: Info, project_id: str, url: str, token: str, output: str):
+def export_project(_: Info, project_id: str, url: str, token: str, output: str, profile: str = "default"):
     """
     Export a project, and associated resources to a local zip file
 
     project_id is the id of the project to export
     """
-    client = KodexaClient(url, token)
+    client = KodexaClient(url, token, profile=profile)
     project_endpoint = client.projects.get(project_id)
     client.export_project(project_endpoint, output)
 
@@ -841,8 +851,9 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str):
     "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--profile", default="default", help="The profile to use (default)")
 @pass_info
-def import_project(_: Info, org_slug: str, url: str, token: str, path: str):
+def import_project(_: Info, org_slug: str, url: str, token: str, path: str, profile: str = "default"):
     """
     Import a project, and associated resources from a local zip file
 
@@ -852,7 +863,7 @@ def import_project(_: Info, org_slug: str, url: str, token: str, path: str):
     """
     print("Importing project from {}".format(path))
 
-    client = KodexaClient(url, token)
+    client = KodexaClient(url, token, profile=profile)
     organization = client.organizations.find_by_slug(org_slug)
 
     print("Organization: {}".format(organization.name))
@@ -872,15 +883,17 @@ def import_project(_: Info, org_slug: str, url: str, token: str, path: str):
 @click.option(
     "--format", default=None, help="The format to use if from stdin (json, yaml)"
 )
+@click.option("--profile", default="default", help="The profile to use (default)")
 @pass_info
 def send_event(
-    _: Info,
-    project_id: str,
-    assistant_id: str,
-    url: str,
-    file: str,
-    event_format: str,
-    token: str,
+        _: Info,
+        project_id: str,
+        assistant_id: str,
+        url: str,
+        file: str,
+        event_format: str,
+        token: str,
+        profile: str = "default"
 ):
     """
     Send an event to an assistant
@@ -890,7 +903,7 @@ def send_event(
 
     """
 
-    client = KodexaClient(url, token)
+    client = KodexaClient(url, token, profile=profile)
 
     obj = None
     if file is None:
@@ -926,15 +939,18 @@ def send_event(
 @click.option(
     "--python/--no-python", default=False, help="Print out the header for a Python file"
 )
-def platform(_: Info, python: bool):
+@click.option(
+    "--profile", default=None, help="The profile to be used on getting platform"
+)
+def platform(_: Info, python: bool, profile=None):
     """
     Get the details for the Kodexa instance we are logged into
     """
-    platform_url = KodexaPlatform.get_url()
+    platform_url = KodexaPlatform.get_url(profile)
 
     if platform_url is not None:
-        print(f"Kodexa URL: {KodexaPlatform.get_url()}")
-        kodexa_version = KodexaPlatform.get_server_info()
+        print(f"Kodexa URL: {KodexaPlatform.get_url(profile)}")
+        kodexa_version = KodexaPlatform.get_server_info(profile)
         print(f"Environment: {kodexa_version['environment']}")
         print(f"Version: {kodexa_version['version']}")
         print(f"Release: {kodexa_version['release']}")
@@ -945,7 +961,7 @@ def platform(_: Info, python: bool):
             print("\nPython example:\n\n")
             print(f"from kodexa import KodexaClient")
             print(
-                f"client = KodexaClient('{KodexaPlatform.get_url()}', '{KodexaPlatform.get_access_token()}')"
+                f"client = KodexaClient('{KodexaPlatform.get_url(profile)}', '{KodexaPlatform.get_access_token(profile)}')"
             )
     else:
         print("Kodexa is not logged in")
@@ -958,16 +974,16 @@ def platform(_: Info, python: bool):
     "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--profile", default="default", help="The profile to use (default)")
 @pass_info
-def delete(_: Info, object_type: str, ref: str, url: str, token: str):
+def delete(_: Info, object_type: str, ref: str, url: str, token: str, profile: str = "default"):
     """
     Delete the given resource (based on ref)
 
     object_type is the type of object to delete (e.g. 'project', 'assistant', 'store')
     ref is the ref of the object to delete
     """
-    client = KodexaClient(url, token)
-    client = KodexaClient(url=url, access_token=token)
+    client = KodexaClient(url=url, access_token=token, profile=profile)
 
     from kodexa.platform.client import resolve_object_type
 
@@ -1020,6 +1036,21 @@ def login(_: Info):
         print("ERROR", error)
     else:
         KodexaPlatform.login(kodexa_url, username, password)
+
+
+@cli.command()
+@pass_info
+def configure(_: Info):
+    """
+    Create configuration for the Kodexa platform using profile
+    profile is defaulted to 'default'
+    """
+    url = input("Enter Kodexa URL: ")
+    access_token = input("Enter access token: ")
+    profile = input("Enter profile name: ")
+    if not profile:
+        print("Using 'default' profile name")
+    KodexaPlatform.configure(url, access_token, profile)
 
 
 @cli.command()
@@ -1110,15 +1141,15 @@ def version(_: Info):
 @click.argument("files", nargs=-1)
 @pass_info
 def package(
-    _: Info,
-    path: str,
-    output: str,
-    version: str,
-    files: list[str] = None,
-    helm: bool = False,
-    package_name: Optional[str] = None,
-    repository: str = "kodexa",
-    strip_version_build: bool = False,
+        _: Info,
+        path: str,
+        output: str,
+        version: str,
+        files: list[str] = None,
+        helm: bool = False,
+        package_name: Optional[str] = None,
+        repository: str = "kodexa",
+        strip_version_build: bool = False,
 ):
     """
     Package an extension pack based on the kodexa.yml file
@@ -1200,16 +1231,16 @@ def package(
 
                 # We need to update the extension pack chart with the version
                 with open(
-                    f"{os.path.dirname(get_path())}/charts/extension-pack/Chart.yaml",
-                    "r",
+                        f"{os.path.dirname(get_path())}/charts/extension-pack/Chart.yaml",
+                        "r",
                 ) as stream:
                     chart_yaml = yaml.safe_load(stream)
                     chart_yaml["version"] = metadata_obj["version"]
                     chart_yaml["appVersion"] = metadata_obj["version"]
                     chart_yaml["name"] = "extension-meta-" + metadata_obj["slug"]
                     with open(
-                        f"{os.path.dirname(get_path())}/charts/extension-pack/Chart.yaml",
-                        "w",
+                            f"{os.path.dirname(get_path())}/charts/extension-pack/Chart.yaml",
+                            "w",
                     ) as stream:
                         yaml.safe_dump(chart_yaml, stream)
 
@@ -1230,8 +1261,8 @@ def package(
             print("Extension pack has been packaged :tada:")
 
         elif (
-            metadata_obj["type"].upper() == "STORE"
-            and metadata_obj["storeType"].upper() == "MODEL"
+                metadata_obj["type"].upper() == "STORE"
+                and metadata_obj["storeType"].upper() == "MODEL"
         ):
             model_content_metadata = ModelContentMetadata.model_validate(
                 metadata_obj["metadata"]
@@ -1288,21 +1319,21 @@ def package(
 
             # We need to update the extension pack chart with the version
             with open(
-                f"{os.path.dirname(get_path())}/charts/resource-pack/Chart.yaml", "r"
+                    f"{os.path.dirname(get_path())}/charts/resource-pack/Chart.yaml", "r"
             ) as stream:
                 chart_yaml = yaml.safe_load(stream)
                 chart_yaml["version"] = version
                 chart_yaml["appVersion"] = version
                 chart_yaml["name"] = package_name
                 with open(
-                    f"{os.path.dirname(get_path())}/charts/resource-pack/Chart.yaml",
-                    "w",
+                        f"{os.path.dirname(get_path())}/charts/resource-pack/Chart.yaml",
+                        "w",
                 ) as stream:
                     yaml.safe_dump(chart_yaml, stream)
 
             # We need to update the extension pack chart with the version
             with open(
-                f"{os.path.dirname(get_path())}/charts/resource-pack/values.yaml", "r"
+                    f"{os.path.dirname(get_path())}/charts/resource-pack/values.yaml", "r"
             ) as stream:
                 chart_yaml = yaml.safe_load(stream)
                 chart_yaml["image"][
@@ -1310,8 +1341,8 @@ def package(
                 ] = f"{repository}/{package_name}-container"
                 chart_yaml["image"]["tag"] = version
                 with open(
-                    f"{os.path.dirname(get_path())}/charts/resource-pack/values.yaml",
-                    "w",
+                        f"{os.path.dirname(get_path())}/charts/resource-pack/values.yaml",
+                        "w",
                 ) as stream:
                     yaml.safe_dump(chart_yaml, stream)
 
