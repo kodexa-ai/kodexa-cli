@@ -70,6 +70,20 @@ DEFAULT_COLUMNS = {
 }
 
 
+def get_current_kodexa_url():
+    try:
+        return KodexaPlatform.get_url()
+    except:
+        return ""
+
+ 
+def get_current_access_token():
+    try:
+        return KodexaPlatform.get_access_token()
+    except:
+        return ""
+
+
 @contextmanager
 def set_directory(path: Path):
     """Sets the cwd within the context
@@ -192,7 +206,11 @@ def safe_entry_point():
     try:
         # Record the starting time of the function execution
         start_time = datetime.now().replace(microsecond=0)
-        print(f"Using profile {KodexaPlatform.get_current_profile()} @ {KodexaPlatform.get_url()}\n")
+
+        try:
+            print(f"Using profile {KodexaPlatform.get_current_profile()} @ {get_current_kodexa_url()}\n")
+        except:
+            print("Unable to load profile")
 
         # Call the cli() function
         cli()
@@ -216,10 +234,10 @@ def safe_entry_point():
 @click.argument("ref", required=True)
 @click.argument("paths", required=True, nargs=-1)
 @click.option(
-    "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--threads", default=5, help="Number of threads to use")
-@click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
 def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int):
     """
@@ -283,9 +301,9 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
     default=False,
 )
 @click.option(
-    "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
-@click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option(
     "--format", default=None, help="The format to input if from stdin (json, yaml)"
 )
@@ -414,9 +432,9 @@ def deploy(
 @cli.command()
 @click.argument("execution_id", required=True)
 @click.option(
-    "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
-@click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
 def logs(_: Info, execution_id: str, url: str, token: str):
     """
@@ -439,9 +457,9 @@ def logs(_: Info, execution_id: str, url: str, token: str):
 @click.argument("ref", required=True)
 @click.argument("output_file", required=False, default="model_implementation")
 @click.option(
-    "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
-@click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
 def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str):
     """
@@ -457,9 +475,9 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
 @click.argument("object_type", required=True)
 @click.argument("ref", required=False)
 @click.option(
-    "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
-@click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option("--query", default="*", help="Limit the results using a query")
 @click.option("--format", default=None, help="The format to output (json, yaml)")
 @click.option("--page", default=1, help="Page number")
@@ -611,9 +629,9 @@ def print_object_table(object_metadata, objects_endpoint, query, page, pagesize,
 @click.argument("ref", required=True)
 @click.argument("query", nargs=-1)
 @click.option(
-    "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
-@click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option(
     "--download/--no-download",
     default=False,
@@ -819,9 +837,9 @@ def query(
 @cli.command()
 @click.argument("project_id", required=True)
 @click.option(
-    "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
-@click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option("--output", help="The path to export to")
 @pass_info
 def export_project(_: Info, project_id: str, url: str, token: str, output: str):
@@ -839,9 +857,9 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str):
 @click.argument("org_slug", required=True)
 @click.argument("path", required=True)
 @click.option(
-    "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
-@click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
 def import_project(_: Info, org_slug: str, url: str, token: str, path: str):
     """
@@ -866,9 +884,9 @@ def import_project(_: Info, org_slug: str, url: str, token: str, path: str):
 @click.argument("project_id", required=True)
 @click.argument("assistant_id", required=True)
 @click.option(
-    "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
-@click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option("--file", help="The path to the file containing the event to send")
 @click.option(
     "--format", default=None, help="The format to use if from stdin (json, yaml)"
@@ -936,13 +954,13 @@ def platform(_: Info, python: bool, show_token: bool):
     """
 
     print(f"Profile: {KodexaPlatform.get_current_profile()}")
-    platform_url = KodexaPlatform.get_url()
+    platform_url = get_current_kodexa_url()
 
     if platform_url is not None:
-        print(f"URL: {KodexaPlatform.get_url()}")
+        print(f"URL: {get_current_kodexa_url()}")
 
         if show_token:
-            print(f"Access Token: {KodexaPlatform.get_access_token()}")
+            print(f"Access Token: {get_current_access_token()}")
         kodexa_version = KodexaPlatform.get_server_info()
         print(f"Environment: {kodexa_version['environment']}")
         print(f"Version: {kodexa_version['version']}")
@@ -951,7 +969,7 @@ def platform(_: Info, python: bool, show_token: bool):
             print("\nPython example:\n\n")
             print(f"from kodexa import KodexaClient")
             print(
-                f"client = KodexaClient('{KodexaPlatform.get_url()}', '{KodexaPlatform.get_access_token()}')"
+                f"client = KodexaClient('{get_current_kodexa_url()}', '{get_current_access_token()}')"
             )
     else:
         print("Kodexa is not logged in")
@@ -961,9 +979,9 @@ def platform(_: Info, python: bool, show_token: bool):
 @click.argument("object_type")
 @click.argument("ref")
 @click.option(
-    "--url", default=KodexaPlatform.get_url(), help="The URL to the Kodexa server"
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
-@click.option("--token", default=KodexaPlatform.get_access_token(), help="Access token")
+@click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
 def delete(_: Info, object_type: str, ref: str, url: str, token: str):
     """
