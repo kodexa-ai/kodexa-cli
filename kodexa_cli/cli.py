@@ -971,11 +971,11 @@ def platform(_: Info, python: bool, show_token: bool):
         kodexa_version = KodexaPlatform.get_server_info()
 
         try:
+            print(kodexa_version)
             print(f"Environment: {kodexa_version['environment']}")
             print(f"Version: {kodexa_version['version']}")
             print(f"Release: {kodexa_version['release']}")
         except:
-            print(kodexa_version)
             print("Unable to get environment details. Does this environment require a Cloudflare token?")
 
         if python:
