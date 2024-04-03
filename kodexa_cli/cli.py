@@ -1070,10 +1070,18 @@ def login(_: Info):
 
     """
     try:
-        kodexa_url = input("Enter the Kodexa URL (https://platform.kodexa.com): ")
+        kodexa_url = input("Enter the Kodexa URL (https://platform.kodexa.ai): ")
+
+        # Lets stop the common issues
+        kodexa_url = kodexa_url.strip()
+
+        # Remove the trailing slash
+        if kodexa_url.endswith("/"):
+            kodexa_url = kodexa_url[:-1]
+
         if kodexa_url == "":
-            print("Using default as https://platform.kodexa.com")
-            kodexa_url = "https://platform.kodexa.com"
+            print("Using default as https://platform.kodexa.ai")
+            kodexa_url = "https://platform.kodexa.ai"
         token = input("Enter your token: ")
         profile_name = input("Enter your profile name (default): ")
     except Exception as error:
