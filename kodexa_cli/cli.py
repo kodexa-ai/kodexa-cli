@@ -70,6 +70,13 @@ DEFAULT_COLUMNS = {
 }
 
 
+def get_current_kodexa_profile():
+    try:
+        return KodexaPlatform.get_current_profile()
+    except:
+        return ""
+
+
 def get_current_kodexa_url():
     try:
         return KodexaPlatform.get_url()
@@ -208,7 +215,7 @@ def safe_entry_point():
         start_time = datetime.now().replace(microsecond=0)
 
         try:
-            print(f"Using profile {KodexaPlatform.get_current_profile()} @ {get_current_kodexa_url()}\n")
+            print(f"Using profile {get_current_kodexa_profile()()} @ {get_current_kodexa_url()}\n")
         except:
             print("Unable to load profile")
 
@@ -953,7 +960,7 @@ def platform(_: Info, python: bool, show_token: bool):
     Get the details for the Kodexa instance we are logged into
     """
 
-    print(f"Profile: {KodexaPlatform.get_current_profile()}")
+    print(f"Profile: {get_current_kodexa_profile()}")
     platform_url = get_current_kodexa_url()
 
     if platform_url is not None:
@@ -1049,7 +1056,7 @@ def profile(_: Info, profile: str, delete: bool, list: bool):
             print(f"Profiles: {','.join(KodexaPlatform.list_profiles())}")
         else:
             print(
-                f"Current profile: {KodexaPlatform.get_current_profile()} [{KodexaPlatform.get_url(KodexaPlatform.get_current_profile())}]")
+                f"Current profile: {get_current_kodexa_profile()} [{KodexaPlatform.get_url(get_current_kodexa_profile())}]")
 
 
 @cli.command()
