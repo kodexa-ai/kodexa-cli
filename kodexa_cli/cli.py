@@ -215,7 +215,7 @@ def safe_entry_point():
         start_time = datetime.now().replace(microsecond=0)
 
         try:
-            print(f"Using profile {get_current_kodexa_profile()()} @ {get_current_kodexa_url()}\n")
+            print(f"Using profile {get_current_kodexa_profile()} @ {get_current_kodexa_url()}\n")
         except:
             print("Unable to load profile")
 
