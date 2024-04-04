@@ -968,15 +968,14 @@ def platform(_: Info, python: bool, show_token: bool):
 
         if show_token:
             print(f"Access Token: {get_current_access_token()}")
-        kodexa_version = KodexaPlatform.get_server_info()
 
-        try:
-            print(kodexa_version)
+        kodexa_version = KodexaPlatform.get_server_info()
+        if kodexa_version:
             print(f"Environment: {kodexa_version['environment']}")
             print(f"Version: {kodexa_version['version']}")
             print(f"Release: {kodexa_version['release']}")
-        except:
-            print("Unable to get environment details. Does this environment require a Cloudflare token?")
+        else:
+            print("Unable to get server info. Check your access tokens.")
 
         if python:
             print("\nPython example:\n\n")
