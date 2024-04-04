@@ -970,13 +970,10 @@ def platform(_: Info, python: bool, show_token: bool):
             print(f"Access Token: {get_current_access_token()}")
 
         kodexa_version = KodexaPlatform.get_server_info()
-        try:
-            print(f"kodexa_version: {kodexa_version}")
-            # print(f"Environment: {kodexa_version['environment']}")
-            # print(f"Version: {kodexa_version['version']}")
-            # print(f"Release: {kodexa_version['release']}")
-        except:
-            print("Unable to get server info. Check your access tokens.")
+
+        print(f"Environment: {kodexa_version['environment']}")
+        print(f"Version: {kodexa_version['version']}")
+        print(f"Release: {kodexa_version['release']}")
 
         if python:
             print("\nPython example:\n\n")
