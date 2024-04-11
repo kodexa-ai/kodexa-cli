@@ -490,6 +490,7 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
 @click.option("--page", default=1, help="Page number")
 @click.option("--pageSize", default=10, help="Page size")
 @click.option("--sort", default=None, help="Sort by (ie. startDate:desc)")
+@click.option("--truncate/--no-truncate", default=True, help="Truncate the output or not")
 @pass_info
 def get(
         _: Info,
@@ -502,6 +503,7 @@ def get(
         page: int = 1,
         pagesize: int = 10,
         sort: str = None,
+        truncate: bool = True,
 ):
     """
     List the instances of the component or entity type
@@ -534,7 +536,7 @@ def get(
                 GLOBAL_IGNORE_COMPLETE = True
         else:
             print_object_table(
-                object_metadata, objects_endpoint, query, page, pagesize, sort
+                object_metadata, objects_endpoint, query, page, pagesize, sort, truncate
             )
     else:
         if ref and not ref.isspace():
@@ -563,14 +565,14 @@ def get(
 
                 objects_endpoint = client.get_object_type(object_type, organization)
                 print_object_table(
-                    object_metadata, objects_endpoint, query, page, pagesize, sort
+                    object_metadata, objects_endpoint, query, page, pagesize, sort, truncate
                 )
         else:
             print(f"You must provide a ref to get a specific object")
             exit(1)
 
 
-def print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort):
+def print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort, truncate):
     """
     Print the output of the list in a table form
 
@@ -587,7 +589,10 @@ def print_object_table(object_metadata, objects_endpoint, query, page, pagesize,
 
     # Create column header for the table
     for col in column_list:
-        table.add_column(col)
+        if truncate:
+            table.add_column(col)
+        else:
+            table.add_column(col, overflow="fold")
 
     try:
         page_of_object_endpoints = objects_endpoint.list(
