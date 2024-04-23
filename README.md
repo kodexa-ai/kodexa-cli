@@ -29,9 +29,7 @@ It is built on a set of core principles:
 This repository contains the command line tools for Kodexa. The tools are the primary way to interact with Kodexa. It
 allows you to configure components and manage aspects of your Kodexa Platform installation.
 
-## Documentation & Examples
-
-Documentation is available at the [Kodexa Documentation Portal](https://docs.kodexa.com)
+You can learn about about Kodexa at https://support.kodexa.ai
 
 ## Set-up
 

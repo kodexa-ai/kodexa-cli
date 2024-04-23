@@ -83,7 +83,7 @@ def get_current_kodexa_url():
     except:
         return ""
 
- 
+
 def get_current_access_token():
     try:
         return KodexaPlatform.get_access_token()
@@ -1093,12 +1093,18 @@ def login(_: Info):
         token = input("Enter your token: ")
         profile_name = input("Enter your profile name (default): ")
     except Exception as error:
-        print("ERROR", error)
+        import better_exceptions
+        import sys
+        print("\n".join(
+            better_exceptions.format_exception(*sys.exc_info())))
     else:
         try:
             KodexaPlatform.login(kodexa_url, token, profile_name)
         except Exception as error:
-            print("ERROR", error)
+            import better_exceptions
+            import sys
+            print("\n".join(
+                better_exceptions.format_exception(*sys.exc_info())))
 
 
 @cli.command()
