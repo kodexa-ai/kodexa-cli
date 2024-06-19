@@ -820,6 +820,10 @@ def query(
                     print(f"Unable to find assistant with id {reprocess}")
                     exit(1)
 
+                if not stream:
+                    print("You can't reprocess without streaming")
+                    exit(1)
+
                 print(f"Reprocessing with assistant {assistant.name}")
 
             if stream:
