@@ -36,7 +36,7 @@ from kodexa_cli.documentation import get_path
 
 logging.root.addHandler(logging.StreamHandler(sys.stdout))
 
-from kodexa import KodexaClient
+from kodexa import KodexaClient, Taxonomy
 from kodexa.platform.kodexa import KodexaPlatform
 
 global GLOBAL_IGNORE_COMPLETE
@@ -1108,6 +1108,8 @@ def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str)
             taxonomy = json.load(f)
         else:
             taxonomy = yaml.safe_load(f)
+
+    taxonomy = Taxonomy(**taxonomy)
 
     from kodexa.dataclasses import build_llm_data_classes_for_taxonomy
     build_llm_data_classes_for_taxonomy(taxonomy, output_path, output_file)
