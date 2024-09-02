@@ -1093,7 +1093,8 @@ def profile(_: Info, profile: str, delete: bool, list: bool):
 @pass_info
 @click.argument("taxonomy_file", required=False)
 @click.option("--output-path", default=".", help="The path to output the dataclasses")
-def dataclasses(_: Info, taxonomy_file: str, output_path: str):
+@click.option("--output-file", default="dataclasses.py", help="The file to output the dataclasses to")
+def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str):
     """
     Generate dataclasses based on a taxonomy file
     """
@@ -1109,7 +1110,7 @@ def dataclasses(_: Info, taxonomy_file: str, output_path: str):
             taxonomy = yaml.safe_load(f)
 
     from kodexa.dataclasses import build_llm_data_classes_for_taxonomy
-    build_llm_data_classes_for_taxonomy(taxonomy, output_path)
+    build_llm_data_classes_for_taxonomy(taxonomy, output_path, output_file)
 
 
 @cli.command()
