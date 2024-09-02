@@ -1088,6 +1088,30 @@ def profile(_: Info, profile: str, delete: bool, list: bool):
                 f"Current profile: {get_current_kodexa_profile()} [{KodexaPlatform.get_url(get_current_kodexa_profile())}]")
 
 
+
+@cli.command()
+@pass_info
+@click.argument("taxonomy_file", required=False)
+@click.option("--output-path", default=".", help="The path to output the dataclasses")
+def dataclasses(_: Info, taxonomy_file: str, output_path: str):
+    """
+    Generate dataclasses based on a taxonomy file
+    """
+    if taxonomy_file is None:
+        print("You must provide a taxonomy file")
+        exit(1)
+
+    with open(taxonomy_file, "r") as f:
+
+        if taxonomy_file.endswith(".json"):
+            taxonomy = json.load(f)
+        else:
+            taxonomy = yaml.safe_load(f)
+
+    from kodexa.dataclasses import build_llm_data_classes_for_taxonomy
+    build_llm_data_classes_for_taxonomy(taxonomy, output_path)
+
+
 @cli.command()
 @pass_info
 def login(_: Info):
