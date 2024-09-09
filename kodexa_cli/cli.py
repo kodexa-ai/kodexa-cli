@@ -13,7 +13,6 @@ import os.path
 import sys
 from contextlib import contextmanager
 from datetime import datetime
-from getpass import getpass
 from pathlib import Path
 from shutil import copyfile
 from typing import Optional
@@ -29,10 +28,9 @@ from kodexa.platform.client import (
     PageDocumentFamilyEndpoint,
     DocumentFamilyEndpoint,
 )
+from kodexa_cli.documentation import get_path
 from rich import print
 from rich.prompt import Confirm
-
-from kodexa_cli.documentation import get_path
 
 logging.root.addHandler(logging.StreamHandler(sys.stdout))
 
@@ -262,8 +260,10 @@ def safe_entry_point():
 )
 @click.option("--threads", default=5, help="Number of threads to use")
 @click.option("--token", default=get_current_access_token(), help="Access token")
+@click.option("--external-data/--no-external-data", default=False,
+              help="Look for a .json file that has the same name as the upload and attach this as external data")
 @pass_info
-def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int):
+def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int, external_data: bool = False):
     """
     Upload a file to the Kodexa platform.
 
@@ -283,8 +283,19 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
 
         def upload_file(path):
             try:
-                document_store.upload_file(path)
-                return f"Successfully uploaded {path}"
+
+                # If we have external data set then we want to look for
+                # a file with the same name as the path but the extension .json
+                if external_data:
+                    external_data_path = f"{os.path.splitext(path)[0]}.json"
+                    if os.path.exists(external_data_path):
+                        with open(external_data_path, "r") as f:
+                            external_data = json.load(f)
+                            document_store.upload_file(path, external_data=external_data)
+                            return f"Successfully uploaded {path} with external data"
+                else:
+                    document_store.upload_file(path)
+                    return f"Successfully uploaded {path}"
             except Exception as e:
                 return f"Error uploading {path}: {e}"
 
