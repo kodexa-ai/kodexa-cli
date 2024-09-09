@@ -289,7 +289,7 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
                         with open(external_data_path, "r") as f:
                             external_data = json.load(f)
                             document_store.upload_file(path, external_data=external_data)
-                            return f"Successfully uploaded {path} with external data"
+                            return f"Successfully uploaded {path} with external data {json.dumps(external_data)}"
                     else:
                         return f"External data file not found for {path}"
                 else:
