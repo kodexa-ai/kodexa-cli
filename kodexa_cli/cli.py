@@ -281,7 +281,7 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
     if isinstance(document_store, DocumentStoreEndpoint):
         from rich.progress import track
 
-        def upload_file(path):
+        def upload_file(path, external_data):
             try:
 
                 # If we have external data set then we want to look for
@@ -305,7 +305,7 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
         with ThreadPoolExecutor(max_workers=threads) as executor:
             # Map the upload function to each file path
             for result in track(
-                    executor.map(upload_file, paths),
+                    executor.map(upload_file, paths, external_data),
                     total=len(paths),
                     description="Uploading files",
             ):
