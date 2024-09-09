@@ -283,9 +283,6 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
 
         def upload_file(path, external_data):
             try:
-
-                # If we have external data set then we want to look for
-                # a file with the same name as the path but the extension .json
                 if external_data:
                     external_data_path = f"{os.path.splitext(path)[0]}.json"
                     if os.path.exists(external_data_path):
@@ -293,6 +290,8 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
                             external_data = json.load(f)
                             document_store.upload_file(path, external_data=external_data)
                             return f"Successfully uploaded {path} with external data"
+                    else:
+                        return f"External data file not found for {path}"
                 else:
                     document_store.upload_file(path)
                     return f"Successfully uploaded {path}"
@@ -303,9 +302,9 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
 
         # Using ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=threads) as executor:
-            # Map the upload function to each file path
+            upload_args = [(path, external_data) for path in paths]
             for result in track(
-                    executor.map(upload_file, paths, external_data),
+                    executor.map(lambda args: upload_file(*args), upload_args),
                     total=len(paths),
                     description="Uploading files",
             ):
