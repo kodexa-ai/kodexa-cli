@@ -1028,8 +1028,9 @@ def platform(_: Info, python: bool, show_token: bool):
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
+@click.option("-y", "--yes", is_flag=True, help="Don't ask for confirmation")
 @pass_info
-def delete(_: Info, object_type: str, ref: str, url: str, token: str):
+def delete(_: Info, object_type: str, ref: str, url: str, token: str, yes: bool):
     """
     Delete the given resource (based on ref)
 
@@ -1047,20 +1048,30 @@ def delete(_: Info, object_type: str, ref: str, url: str, token: str):
         objects_endpoint = client.get_object_type(object_type)
         object_endpoint = objects_endpoint.get(ref)
 
-        confirm_delete = Confirm.ask(
-            f"Please confirm you want to delete {object_metadata['name']} {object_endpoint.name}?"
-        )
-        if confirm_delete:
-            print(f"Deleting {object_type} {ref}")
-            object_endpoint.delete()
-            print(f"Deleted")
+        if not yes:
+            confirm_delete = Confirm.ask(
+                f"Please confirm you want to delete {object_metadata['name']} {object_endpoint.name}?"
+            )
+            if confirm_delete:
+                print(f"Deleting {object_type} {ref}")
+                object_endpoint.delete()
+                print(f"Deleted")
+            else:
+                print(f"Deleting {object_type} {ref}")
+                object_endpoint.delete()
+                print(f"Deleted")
     else:
         if ref and not ref.isspace():
             object_endpoint = client.get_object_by_ref(object_metadata["plural"], ref)
-            confirm_delete = Confirm.ask(
-                f"Please confirm you want to delete {object_metadata['name']} {object_endpoint.ref}?"
-            )
-            if confirm_delete:
+            if not yes:
+                confirm_delete = Confirm.ask(
+                    f"Please confirm you want to delete {object_metadata['name']} {object_endpoint.ref}?"
+                )
+                if confirm_delete:
+                    print(f"Deleting {object_type} {ref}")
+                    object_endpoint.delete()
+                    print(f"Deleted")
+            else:
                 print(f"Deleting {object_type} {ref}")
                 object_endpoint.delete()
                 print(f"Deleted")
