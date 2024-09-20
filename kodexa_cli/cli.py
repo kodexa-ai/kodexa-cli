@@ -1247,6 +1247,11 @@ def version(_: Info):
     default=False,
     help="Determine whether to include the build from the version number when packaging the resources",
 )
+@click.option(
+    "--update-resource-versions/--no-update-resource-versions",
+    default=True,
+    help="Determine whether to update the resources to match the resource pack version",
+)
 @click.option("--helm/--no-helm", default=False, help="Generate a helm chart")
 @click.argument("files", nargs=-1)
 @pass_info
@@ -1260,6 +1265,7 @@ def package(
         package_name: Optional[str] = None,
         repository: str = "kodexa",
         strip_version_build: bool = False,
+        update_resource_versions: bool = True,
 ):
     """
     Package an extension pack based on the kodexa.yml file
@@ -1287,17 +1293,18 @@ def package(
             if e.errno != errno.EEXIST:
                 raise
 
-        if strip_version_build:
-            if "-" in version:
-                new_version = version.split("-")[0]
-            else:
-                new_version = version
+        if update_resource_versions:
+            if strip_version_build:
+                if "-" in version:
+                    new_version = version.split("-")[0]
+                else:
+                    new_version = version
 
-            metadata_obj["version"] = (
-                new_version if new_version is not None else "1.0.0"
-            )
-        else:
-            metadata_obj["version"] = version if version is not None else "1.0.0"
+                metadata_obj["version"] = (
+                    new_version if new_version is not None else "1.0.0"
+                )
+            else:
+                metadata_obj["version"] = version if version is not None else "1.0.0"
 
         unversioned_metadata = os.path.join(output, "kodexa.json")
 
