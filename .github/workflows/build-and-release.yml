@@ -22,8 +22,29 @@ jobs:
       - name: Increment version
         id: version
         run: |
-          # Your existing version increment logic here
-          # ...
+          BRANCH_NAME=$(echo $GITHUB_REF | sed 's/refs\/heads\///')
+          VERSION=$(poetry version --short)
+          MINOR_PATCH_PART=$(echo $VERSION | awk -F '.' '{print $1"."$2}')
+          PATCH_PART=$(echo $VERSION | awk -F '.' '{print substr($NF,1,1)}')
+          if [[ $BRANCH_NAME == "fix"* || $BRANCH_NAME == "bugs"* ]]; then
+            NEW_LATEST_PATCH_PART=$((PATCH_PART+1))b${GITHUB_RUN_ID}
+          elif [[ $BRANCH_NAME == "feature"* ]]; then
+            NEW_LATEST_PATCH_PART=$((PATCH_PART+1))a${GITHUB_RUN_ID}
+          elif [[ $BRANCH_NAME == "test"* ]]; then
+            NEW_LATEST_PATCH_PART=$((PATCH_PART+1))rc${GITHUB_RUN_ID}
+          elif [[ $BRANCH_NAME == "main"* ]]; then
+            poetry version patch
+            VERSION=$(poetry version --short)
+            MINOR_PATCH_PART=${VERSION#*.}
+            LAST_VERSION_PART_PREFIX=${MINOR_PATCH_PART%??}
+            PATCH_PART=${LAST_VERSION_PART_PREFIX%.*}
+            NEW_LATEST_PATCH_PART=${PATCH_PART}${GITHUB_RUN_ID}
+          else
+            echo "Invalid branch name"
+            exit 1
+          fi
+          NEW_VERSION=${VERSION%.*}.${NEW_LATEST_PATCH_PART}
+          echo $NEW_VERSION
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "versionType=Release" >> $GITHUB_OUTPUT
           poetry version $NEW_VERSION --no-ansi
