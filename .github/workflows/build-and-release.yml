@@ -73,6 +73,7 @@ jobs:
           tag: v${{ steps.version.outputs.version }}
           title: Release ${{ steps.version.outputs.version }}
 
+
   build-executables:
     needs: build-and-release
     name: Build ${{ matrix.os }} Executable
