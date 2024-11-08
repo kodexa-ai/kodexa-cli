@@ -65,13 +65,6 @@ jobs:
         run: |
           poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
           poetry publish
-      - name: Create a Release
-        uses: elgohr/Github-Release-Action@v5
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        with:
-          tag: v${{ steps.version.outputs.version }}
-          title: Release ${{ steps.version.outputs.version }}
 
 
   build-executables:
@@ -118,12 +111,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Download all artifacts
-        uses: actions/download-artifact@v2
-      - name: Create Release
+        uses: actions/download-artifact@v4
+      - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
           files: |
-            kodexa-cli-linux/kodexa-cli-linux
-            kodexa-cli-mac/kodexa-cli-mac
-            kodexa-cli-windows.exe/kodexa-cli-windows.exe
-          generate_release_notes: true
+            kdxa
+            kodexa
+            kodexa.exe
