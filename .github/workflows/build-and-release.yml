@@ -13,13 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python 3.10
+      - name: Set up Python 3.11
         uses: actions/setup-python@v2
         with:
           python-version: '3.11'
       - name: Run image
         uses: abatilo/actions-poetry@v2
       - name: Increment version
+        id: version
         run: |
           BRANCH_NAME=$(echo $GITHUB_REF | sed 's/refs\/heads\///')
           VERSION=$(poetry version --short)
@@ -44,8 +45,8 @@ jobs:
           fi
           NEW_VERSION=${VERSION%.*}.${NEW_LATEST_PATCH_PART}
           echo $NEW_VERSION
-          echo "::set-output name=version::$NEW_VERSION"
-          echo "::set-output name=versionType::Release"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "versionType=Release" >> $GITHUB_OUTPUT
           poetry version $NEW_VERSION --no-ansi
       - name: Install dependencies
         run: poetry install
@@ -64,3 +65,52 @@ jobs:
         run: |
           poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
           poetry publish
+      - name: Build Mac version
+        run: |
+          poetry run pyinstaller kodexa-cli.spec --target-arch universal2
+          mv dist/kodexa-cli dist/kodexa-cli-mac
+      - name: Build Linux version
+        run: |
+          poetry run pyinstaller kodexa-cli.spec
+          mv dist/kodexa-cli dist/kodexa-cli-linux
+      - name: Build Windows version
+        run: |
+          poetry run pyinstaller kodexa-cli.spec --target-arch win64
+          mv dist/kodexa-cli.exe dist/kodexa-cli-windows.exe
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          release_name: Release ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+      - name: Upload Mac Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./dist/kodexa-cli-mac
+          asset_name: kodexa-cli-mac
+          asset_content_type: application/octet-stream
+      - name: Upload Linux Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./dist/kodexa-cli-linux
+          asset_name: kodexa-cli-linux
+          asset_content_type: application/octet-stream
+      - name: Upload Windows Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./dist/kodexa-cli-windows.exe
+          asset_name: kodexa-cli-windows.exe
+          asset_content_type: application/octet-stream
