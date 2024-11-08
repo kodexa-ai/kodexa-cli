@@ -2,11 +2,8 @@ name: Kodexa CLI Python Package
 
 on:
   push:
-    paths:
-      - '**'
-      - '!docs/**'
-      - '!.github/**'
-
+    branches:
+      - main
 jobs:
   build-and-release:
     name: Build, Package & Release
