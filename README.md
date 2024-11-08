@@ -2,8 +2,6 @@
 
 [![Kodexa CLI Python Package](https://github.com/kodexa-ai/kodexa-cli/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/kodexa-ai/kodexa-cli/actions/workflows/build-and-release.yml)
 
-![img.png](https://docs.kodexa.com/img.png)
-
 Kodexa is a platform for building intelligent document processing pipelines. It is a set of tools and services that
 allow you to build a pipeline that can take a document, extract the content, and then process it to extract the
 information you need.
