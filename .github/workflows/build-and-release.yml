@@ -12,9 +12,9 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Python 3.11
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Run image
@@ -109,15 +109,15 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Download all artifacts
         uses: actions/download-artifact@v4
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Release ${{ steps.version.outputs.version }}
+          tag_name: v${{ needs.build-and-release.outputs.version }}
+          name: Release ${{ needs.build-and-release.outputs.version }}
           files: |
             kdxa
             kodexa
