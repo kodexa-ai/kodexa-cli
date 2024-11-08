@@ -82,11 +82,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact_name: kodexa-cli-linux
+            artifact_name: kdxa
           - os: macos-latest
-            artifact_name: kodexa-cli-mac
+            artifact_name: kodexa
           - os: windows-latest
-            artifact_name: kodexa-cli-windows.exe
+            artifact_name: kodexa.exe
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python 3.11
@@ -102,7 +102,7 @@ jobs:
           poetry run pyinstaller kodexa-cli.spec
       - name: Rename artifact
         run: |
-          mv dist/kodexa-cli* dist/${{ matrix.artifact_name }}
+          mv dist/kodexa* dist/${{ matrix.artifact_name }}
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
