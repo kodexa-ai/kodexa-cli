@@ -28,7 +28,6 @@ from kodexa.platform.client import (
     PageDocumentFamilyEndpoint,
     DocumentFamilyEndpoint,
 )
-from kodexa_cli.documentation import get_path
 from rich import print
 from rich.prompt import Confirm
 
@@ -68,6 +67,18 @@ DEFAULT_COLUMNS = {
     ],
     "default": ["ref", "name", "description", "type", "template"],
 }
+
+
+def get_path():
+    """
+    :return: the path of this module file
+
+    Args:
+
+    Returns:
+
+    """
+    return os.path.abspath(__file__)
 
 
 def get_current_kodexa_profile():
@@ -152,6 +163,7 @@ class MetadataHelper:
 
     @staticmethod
     def load_metadata(path, filename: Optional[str]) -> dict:
+        dharma_metadata = None
         if filename is not None:
             dharma_metadata_file = open(os.path.join(path, filename))
             if filename.endswith(".json"):
@@ -1138,7 +1150,12 @@ def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str)
 
 @cli.command()
 @pass_info
-def login(_: Info):
+@click.option(
+    "--url", default=None, help="The URL to the Kodexa server"
+)
+@click.option("--profile", default=None, help="The name of the profile to create")
+@click.option("--token", default=None, help="Access token")
+def login(_: Info, url=None, profile=None, token=None):
     """Logs into the specified platform environment using the email address and password provided,
     then downloads and stores the personal access token (PAT) of the user.
 
@@ -1147,7 +1164,7 @@ def login(_: Info):
 
     """
     try:
-        kodexa_url = input("Enter the Kodexa URL (https://platform.kodexa.ai): ")
+        kodexa_url = url if url is not None else input("Enter the Kodexa URL (https://platform.kodexa.ai): ")
 
         # Lets stop the common issues
         kodexa_url = kodexa_url.strip()
@@ -1159,9 +1176,9 @@ def login(_: Info):
         if kodexa_url == "":
             print("Using default as https://platform.kodexa.ai")
             kodexa_url = "https://platform.kodexa.ai"
-        token = input("Enter your token: ")
-        profile_name = input("Enter your profile name (default): ")
-    except Exception as error:
+        token = token if token is not None else input("Enter your token: ")
+        profile_name = profile if profile is not None else input("Enter your profile name (default): ")
+    except:
         import better_exceptions
         import sys
         print("\n".join(
@@ -1169,58 +1186,11 @@ def login(_: Info):
     else:
         try:
             KodexaPlatform.login(kodexa_url, token, profile_name)
-        except Exception as error:
+        except:
             import better_exceptions
             import sys
             print("\n".join(
                 better_exceptions.format_exception(*sys.exc_info())))
-
-
-@cli.command()
-@click.argument("files", nargs=-1)
-@pass_info
-def mkdocs(_: Info, files: list[str]):
-    """
-    Generate mkdocs documentation for components
-
-    file_pattern is the pattern to use to find the kodexa.yml files (default is **/kodexa.yml)
-
-    """
-
-    class Loader(yaml.SafeLoader):
-        pass
-
-    def construct_undefined(self, node):
-        if isinstance(node, yaml.nodes.ScalarNode):
-            value = self.construct_scalar(node)
-        elif isinstance(node, yaml.nodes.SequenceNode):
-            value = self.construct_sequence(node)
-        elif isinstance(node, yaml.nodes.MappingNode):
-            value = self.construct_mapping(node)
-        else:
-            assert False, f"unexpected node: {node!r}"
-
-    Loader.add_constructor(None, construct_undefined)
-
-    metadata_components = []
-    for path in files:
-        print("Loading metadata from ", path)
-        if path.endswith(".json"):
-            print("Loading from json")
-            components = json.loads(open(path).read())
-        else:
-            print("Loading from yaml")
-            components = yaml.load(open(path).read(), Loader=Loader)
-
-        if not isinstance(components, list):
-            components = [components]
-
-        print(f"Loaded {len(components)} from ", path)
-        metadata_components.extend(components)
-
-    from kodexa_cli.documentation import generate_documentation
-
-    generate_documentation(metadata_components)
 
 
 @cli.command()
