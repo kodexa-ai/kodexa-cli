@@ -935,6 +935,57 @@ def import_project(_: Info, org_slug: str, url: str, token: str, path: str):
     print("Project imported")
 
 
+
+@cli.command()
+def bootstrap():
+    """
+    Bootstrap a model to create the metadata and example implementation
+    """
+    # We will just need the user to provide the orgSlug and slug for the model
+    # then we can create the structure
+    org_slug = input("Enter the slug for the organization: ")
+    slug = input("Enter the slug for the model: ")
+    name = input("Enter the name for the model: ")
+
+    # we will create a model.yml file with the metadata and then a folder called model, in the model folder
+    # we will create __init__.py
+
+    metadata = f"""
+orgSlug: {org_slug}
+slug: {slug}
+version: 1.0.0
+type: store
+storeType: MODEL
+name: {name}
+metadata:
+   type: model
+   inferable: true
+   modelRuntimeRef: kodexa/base-model-runtime
+   contents:
+       - model/**"""
+
+    example_implementation = """
+import logging
+
+from kodexa import Document
+
+logger = logging.getLogger()
+
+def infer(document: Document) -> Document:
+
+    logger.info("Hello World")
+
+    return document
+    """
+
+    with open("model.yml", "w") as f:
+        f.write(metadata)
+
+    os.makedirs("model")
+
+    with open("model/__init__.py", "w") as f:
+        f.write(example_implementation)
+
 @cli.command()
 @click.argument("project_id", required=True)
 @click.argument("assistant_id", required=True)
