@@ -18,7 +18,7 @@ from shutil import copyfile
 from typing import Optional
 
 import click
-import pkg_resources
+from importlib.metadata import version, PackageNotFoundError
 import requests
 import yaml
 from functional import seq
@@ -226,7 +226,7 @@ def safe_entry_point():
         # Record the starting time of the function execution
         start_time = datetime.now().replace(microsecond=0)
 
-        cli_version = pkg_resources.get_distribution("kodexa").version
+        cli_version = version("kodexa")
 
         # Check Pypi for the latest version
         try:
@@ -1251,7 +1251,7 @@ def version(_: Info):
     Get the version of the CLI
 
     """
-    print("Kodexa Version:", pkg_resources.get_distribution("kodexa").version)
+    print("Kodexa Version:", version("kodexa"))
 
 
 @cli.command()
