@@ -6,6 +6,7 @@ This is the Kodexa CLI, it can be used to allow you to work with an instance of 
 
 It supports interacting with the API, listing and viewing components.  Note it can also be used to login and logout
 """
+import importlib
 import json
 import logging
 import os
@@ -226,7 +227,7 @@ def safe_entry_point():
         # Record the starting time of the function execution
         start_time = datetime.now().replace(microsecond=0)
 
-        cli_version = version("kodexa")
+        cli_version =  importlib.metadata.version("kodexa")
 
         # Check Pypi for the latest version
         try:
@@ -1251,7 +1252,7 @@ def version(_: Info):
     Get the version of the CLI
 
     """
-    print("Kodexa Version:", version("kodexa"))
+    print("Kodexa Version:",  importlib.metadata.version("kodexa"))
 
 
 @cli.command()
