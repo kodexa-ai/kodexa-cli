@@ -729,64 +729,10 @@ def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
     try:
         client = KodexaClient(url=url, access_token=token)
         client.create_project(project_id)
-        
-        try:
-            # Create model.yml with metadata
-            metadata = f"""type: model
-name: {project_id}
-version: 1.0.0
-metadata:
-  type: model
-  inferable: true
-  modelRuntimeRef: kodexa/base-model-runtime
-  contents:
-    - model/**"""
-            
-            with open("model.yml", "w") as f:
-                f.write(metadata)
-                
-            # Create model directory and __init__.py
-            os.makedirs("model", exist_ok=True)
-            with open("model/__init__.py", "w") as f:
-                f.write("""import logging
-
-logger = logging.getLogger()
-
-def infer(document):
-    logger.info("Hello World")
-    return document
-""")
-            print("Project bootstrapped successfully")
-        except Exception as e:
-            print(f"Error creating project files: {str(e)}")
-            sys.exit(1)
         print("Project bootstrapped successfully")
     except Exception as e:
         print(f"Error bootstrapping project: {str(e)}")
         sys.exit(1)
-
-    example_implementation = """
-import logging
-
-from kodexa import Document
-
-logger = logging.getLogger()
-
-def infer(document: Document) -> Document:
-
-    logger.info("Hello World")
-
-    return document
-    """
-
-    with open("model.yml", "w") as f:
-        f.write(metadata)
-
-    os.makedirs("model")
-
-    with open("model/__init__.py", "w") as f:
-        f.write(example_implementation)
-
 @cli.command()
 @click.argument("event_id", required=True)
 @click.option("--type", required=True, help="The type of event")
