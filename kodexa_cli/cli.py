@@ -16,10 +16,10 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
-from typing import Optional
+from typing import Any, Optional
 
 import click
-from importlib.metadata import version, PackageNotFoundError
+from importlib import metadata
 import requests
 import yaml
 from functional import seq
@@ -82,23 +82,50 @@ def get_path():
     return os.path.abspath(__file__)
 
 
-def get_current_kodexa_profile():
+def _validate_profile(profile: str) -> bool:
+    """Check if a profile exists in the Kodexa platform configuration.
+
+    Args:
+        profile (str): Name of the profile to validate
+
+    Returns:
+        bool: True if profile exists, False if profile doesn't exist or on error
+    """
     try:
+        profiles = KodexaPlatform.list_profiles()
+        return profile in profiles
+    except Exception:
+        return False
+
+def get_current_kodexa_profile() -> str:
+    """Get the current Kodexa profile name.
+
+    Returns:
+        str: Name of the current profile, or empty string if no profile is set or on error
+    """
+    try:
+        # Get current context's Info object if it exists
+        ctx = click.get_current_context(silent=True)
+        if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None:
+            return ctx.obj.profile
         return KodexaPlatform.get_current_profile()
-    except:
+    except Exception as e:
+        logging.debug(f"Error getting current profile: {str(e)}")
         return ""
 
 
 def get_current_kodexa_url():
     try:
-        return KodexaPlatform.get_url()
+        profile = get_current_kodexa_profile()
+        return KodexaPlatform.get_url(profile)
     except:
         return ""
 
 
 def get_current_access_token():
     try:
-        return KodexaPlatform.get_access_token()
+        profile = get_current_kodexa_profile()
+        return KodexaPlatform.get_access_token(profile)
     except:
         return ""
 
@@ -128,6 +155,7 @@ class Info(object):
     def __init__(self):  # Note: This object must have an empty constructor.
         """Create a new instance."""
         self.verbose: int = 0
+        self.profile: Optional[str] = None
 
 
 # pass_info is a decorator for functions that pass 'Info' objects.
@@ -163,8 +191,8 @@ class MetadataHelper:
     """ """
 
     @staticmethod
-    def load_metadata(path, filename: Optional[str]) -> dict:
-        dharma_metadata = None
+    def load_metadata(path: str, filename: Optional[str]) -> dict[str, Any]:
+        dharma_metadata: dict[str, Any] = {}
         if filename is not None:
             dharma_metadata_file = open(os.path.join(path, filename))
             if filename.endswith(".json"):
@@ -191,8 +219,19 @@ class MetadataHelper:
 # tasks).
 @click.group()
 @click.option("--verbose", "-v", count=True, help="Enable verbose output.")
+@click.option("--profile", help="Override the profile to use for this command")
 @pass_info
-def cli(info: Info, verbose: int):
+def cli(info: Info, verbose: int, profile: Optional[str] = None) -> None:
+    """Initialize the CLI with the specified verbosity level.
+
+    Args:
+        info (Info): Information object to pass data between CLI functions
+        verbose (int): Verbosity level for logging output
+        profile (Optional[str]): Override the profile to use for this command
+
+    Returns:
+        None
+    """
     # Use the verbosity count to determine the logging level...
     if verbose > 0:
         logging.root.setLevel(
@@ -206,17 +245,27 @@ def cli(info: Info, verbose: int):
             )
         )
     info.verbose = verbose
+    
+    # Handle profile override
+    if profile is not None:
+        if not _validate_profile(profile):
+            print(f"Profile '{profile}' does not exist")
+            print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
+            sys.exit(1)
+        info.profile = profile
 
 
-def safe_entry_point():
-    """
-    This function is a safe entry point that handles any exceptions
-    that occur when the cli() function is called. It prints the time
-    the function started and ended, as well as any exceptions that occur.
+def safe_entry_point() -> None:
+    """Safe entry point for the CLI that handles exceptions and timing.
 
-    This function is primarily used as a wrapper to ensure that any exceptions
-    that occur during execution are handled gracefully and that the execution
-    time is logged for debugging or performance tuning purposes.
+    Wraps the main CLI execution to provide:
+    - Exception handling with user-friendly error messages
+    - Execution timing information
+    - Version checking against PyPI
+    - Profile information display
+
+    Returns:
+        None
     """
     # Assuming that execution is successful initially
     success = True
@@ -227,7 +276,7 @@ def safe_entry_point():
         # Record the starting time of the function execution
         start_time = datetime.now().replace(microsecond=0)
 
-        cli_version =  importlib.metadata.version("kodexa")
+        cli_version = metadata.version("kodexa")
 
         # Check Pypi for the latest version
         try:
@@ -276,13 +325,19 @@ def safe_entry_point():
 @click.option("--external-data/--no-external-data", default=False,
               help="Look for a .json file that has the same name as the upload and attach this as external data")
 @pass_info
-def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int, external_data: bool = False):
-    """
-    Upload a file to the Kodexa platform.
+def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int, external_data: bool = False) -> None:
+    """Upload a file to the Kodexa platform.
 
-    ref is the reference to the document store to upload to.
-    path is the path to the file to upload, it can be many files.
-    threads is the number of threads to use for the upload (default is 5)
+    Args:
+        ref (str): Reference to the document store to upload to
+        paths (list[str]): Paths to the files to upload
+        token (str): Access token for authentication
+        url (str): URL to the Kodexa server
+        threads (int): Number of threads to use for upload (default: 5)
+        external_data (bool): Whether to look for external data JSON files (default: False)
+
+    Returns:
+        None
     """
 
     client = KodexaClient(url=url, access_token=token)
@@ -366,14 +421,28 @@ def deploy(
         files: list[str],
         url: str,
         token: str,
-        format=None,
+        format: Optional[str] = None,
         update: bool = False,
-        version=None,
+        version: Optional[str] = None,
         overlay: Optional[str] = None,
-        slug=None,
-):
-    """
-    Deploy a component to a Kodexa platform instance from a file or stdin
+        slug: Optional[str] = None,
+) -> None:
+    """Deploy a component to a Kodexa platform instance.
+
+    Args:
+        org (Optional[str]): Organization slug to deploy to
+        file (str): Path to the file containing the object to deploy
+        files (list[str]): List of files to deploy
+        url (str): URL of the Kodexa server
+        token (str): Access token for authentication
+        format (Optional[str]): Format of input if from stdin (json, yaml)
+        update (bool): Whether to update existing components (default: False)
+        version (Optional[str]): Override version for component
+        overlay (Optional[str]): JSON/YAML file to overlay metadata
+        slug (Optional[str]): Override slug for component
+
+    Returns:
+        None
     """
 
     client = KodexaClient(access_token=token, url=url)
@@ -483,11 +552,16 @@ def deploy(
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
-def logs(_: Info, execution_id: str, url: str, token: str):
-    """
-    Get the logs for a specific execution
+def logs(_: Info, execution_id: str, url: str, token: str) -> None:
+    """Get the logs for a specific execution.
 
-    execution_id is the id of the execution to get the logs for
+    Args:
+        execution_id (str): ID of the execution to get logs for
+        url (str): URL of the Kodexa server
+        token (str): Access token for authentication
+
+    Returns:
+        None
     """
     client = KodexaClient(url=url, access_token=token)
     response = client.executions.get(execution_id).logs()
@@ -508,9 +582,17 @@ def logs(_: Info, execution_id: str, url: str, token: str):
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
-def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str):
-    """
-    Download the implementation of a model store
+def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str) -> None:
+    """Download the implementation of a model store.
+
+    Args:
+        ref (str): Reference to the model store
+        output_file (str): Path to save the implementation
+        url (str): URL of the Kodexa server
+        token (str): Access token for authentication
+
+    Returns:
+        None
     """
     # We are going to download the implementation of the component
     client = KodexaClient(url=url, access_token=token)
@@ -539,17 +621,28 @@ def get(
         url: str,
         token: str,
         query: str,
-        format=None,
+        format: Optional[str] = None,
         page: int = 1,
         pagesize: int = 10,
-        sort: str = None,
+        sort: Optional[str] = None,
         truncate: bool = True,
-):
-    """
-    List the instances of the component or entity type
+) -> None:
+    """List instances of a component or entity type.
 
-    object_type is the type of object to list (component, document, execution, etc.)
-    ref is the reference to the object
+    Args:
+        object_type (str): Type of object to list (component, document, execution, etc.)
+        ref (Optional[str]): Reference to the specific object
+        url (str): URL of the Kodexa server
+        token (str): Access token for authentication
+        query (str): Query string to filter results
+        format (Optional[str]): Output format (json, yaml)
+        page (int): Page number for pagination (default: 1)
+        pagesize (int): Number of items per page (default: 10)
+        sort (Optional[str]): Sort field and direction (e.g., "startDate:desc")
+        truncate (bool): Whether to truncate output (default: True)
+
+    Returns:
+        None
     """
 
     client = KodexaClient(url=url, access_token=token)
@@ -612,10 +705,20 @@ def get(
             exit(1)
 
 
-def print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort, truncate):
-    """
-    Print the output of the list in a table form
+def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, query: str, page: int, pagesize: int, sort: Optional[str], truncate: bool) -> None:
+    """Print the output of the list in a table form.
 
+    Args:
+        object_metadata (dict[str, Any]): Metadata about the object type
+        objects_endpoint (Any): Endpoint for accessing objects
+        query (str): Query string to filter results
+        page (int): Page number for pagination
+        pagesize (int): Number of items per page
+        sort (Optional[str]): Sort field and direction
+        truncate (bool): Whether to truncate output
+
+    Returns:
+        None
     """
     from rich.table import Table
 
@@ -745,20 +848,34 @@ def query(
         threads: int = 5,
         limit: Optional[int] = None,
         watch: Optional[int] = None,
-):
-    """
-    Query the documents in a given document store
+) -> None:
+    """Query and manipulate documents in a document store.
 
-    ref is the reference to the document store
-    query is the query to run
-    reprocess is the assistant id to use for reprocessing
-    delete will delete the document families that match the query
+    Args:
+        query (list[str]): Query terms to filter documents
+        ref (str): Reference to the document store
+        url (str): URL of the Kodexa server
+        token (str): Access token for authentication
+        download (bool): Download KDDB files for matching documents
+        download_native (bool): Download native files for matching documents
+        page (int): Page number for pagination
+        pagesize (int): Number of items per page
+        sort (None): Sort field and direction
+        filter (None): Use filter syntax instead of query syntax
+        reprocess (Optional[str]): Assistant ID to reprocess documents with
+        delete (bool): Delete matching documents (default: False)
+        stream (bool): Stream results instead of paginating (default: False)
+        threads (int): Number of threads for parallel processing (default: 5)
+        limit (Optional[int]): Maximum number of results when streaming
+        watch (Optional[int]): Interval in seconds to watch for changes
 
+    Returns:
+        None
     """
     client = KodexaClient(url=url, access_token=token)
     from kodexa.platform.client import DocumentStoreEndpoint
 
-    query = " ".join(list(query))
+    query_str: str = " ".join(list(query))
 
     document_store: DocumentStoreEndpoint = client.get_object_by_ref("store", ref)
 
@@ -855,27 +972,26 @@ def query(
                         max_workers=threads
                 ) as executor:
 
-                    def process_family(document_family):
+                    def process_family(doc_family: DocumentFamilyEndpoint) -> None:
                         if download:
-                            print(f"Downloading document for {document_family.path}")
-                            document_family: DocumentFamilyEndpoint = document_family
-                            document_family.get_document().to_kddb().save(
-                                document_family.path + ".kddb"
+                            print(f"Downloading document for {doc_family.path}")
+                            doc_family.get_document().to_kddb().save(
+                                doc_family.path + ".kddb"
                             )
                         if download_native:
                             print(
-                                f"Downloading native object for {document_family.path}"
+                                f"Downloading native object for {doc_family.path}"
                             )
-                            with open(document_family.path + ".native", "wb") as f:
-                                f.write(document_family.get_native())
+                            with open(doc_family.path + ".native", "wb") as f:
+                                f.write(doc_family.get_native())
 
                         if delete:
-                            print(f"Deleting {document_family.path}")
-                            document_family.delete()
+                            print(f"Deleting {doc_family.path}")
+                            doc_family.delete()
 
                         if reprocess is not None:
-                            print(f"Reprocessing {document_family.path}")
-                            document_family.reprocess(assistant)
+                            print(f"Reprocessing {doc_family.path}")
+                            doc_family.reprocess(assistant)
 
                     executor.map(process_family, document_families)
 
@@ -898,11 +1014,17 @@ def query(
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option("--output", help="The path to export to")
 @pass_info
-def export_project(_: Info, project_id: str, url: str, token: str, output: str):
-    """
-    Export a project, and associated resources to a local zip file
+def export_project(_: Info, project_id: str, url: str, token: str, output: str) -> None:
+    """Export a project and associated resources to a local zip file.
 
-    project_id is the id of the project to export
+    Args:
+        project_id (str): ID of the project to export
+        url (str): URL of the Kodexa server
+        token (str): Access token for authentication
+        output (str): Path to save the exported zip file
+
+    Returns:
+        None
     """
     client = KodexaClient(url, token)
     project_endpoint = client.projects.get(project_id)
@@ -917,13 +1039,17 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str):
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
-def import_project(_: Info, org_slug: str, url: str, token: str, path: str):
-    """
-    Import a project, and associated resources from a local zip file
+def import_project(_: Info, org_slug: str, url: str, token: str, path: str) -> None:
+    """Import a project and associated resources from a local zip file.
 
-    org_slug is the slug of the organization to import into
-    path is the path to the zip file
+    Args:
+        org_slug (str): Slug of the organization to import into
+        url (str): URL of the Kodexa server
+        token (str): Access token for authentication
+        path (str): Path to the zip file to import
 
+    Returns:
+        None
     """
     print("Importing project from {}".format(path))
 
@@ -938,9 +1064,15 @@ def import_project(_: Info, org_slug: str, url: str, token: str, path: str):
 
 
 @cli.command()
-def bootstrap():
-    """
-    Bootstrap a model to create the metadata and example implementation
+def bootstrap() -> None:
+    """Bootstrap a model by creating metadata and example implementation.
+
+    Creates a model.yml file with metadata and a model directory with
+    an example implementation in __init__.py. Prompts for organization slug,
+    model slug, and model name.
+
+    Returns:
+        None
     """
     # We will just need the user to provide the orgSlug and slug for the model
     # then we can create the structure
@@ -1007,13 +1139,19 @@ def send_event(
         file: str,
         event_format: str,
         token: str,
-):
-    """
-    Send an event to an assistant
+) -> None:
+    """Send an event to an assistant.
 
-    project_id is the id of the project to send the event to
-    assistant_id is the id of the assistant to send the event to
+    Args:
+        project_id (str): ID of the project containing the assistant
+        assistant_id (str): ID of the assistant to send the event to
+        url (str): URL of the Kodexa server
+        file (str): Path to file containing the event data
+        event_format (str): Format of the event data (json, yaml)
+        token (str): Access token for authentication
 
+    Returns:
+        None
     """
 
     client = KodexaClient(url, token)
@@ -1055,9 +1193,15 @@ def send_event(
 @click.option(
     "--show-token/--no-show-token", default=False, help="Show access token"
 )
-def platform(_: Info, python: bool, show_token: bool):
-    """
-    Get the details for the Kodexa instance we are logged into
+def platform(_: Info, python: bool, show_token: bool) -> None:
+    """Get details about the connected Kodexa platform instance.
+
+    Args:
+        python (bool): Whether to print Python code example
+        show_token (bool): Whether to display the access token
+
+    Returns:
+        None
     """
 
     print(f"Profile: {get_current_kodexa_profile()}")
@@ -1094,12 +1238,18 @@ def platform(_: Info, python: bool, show_token: bool):
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option("-y", "--yes", is_flag=True, help="Don't ask for confirmation")
 @pass_info
-def delete(_: Info, object_type: str, ref: str, url: str, token: str, yes: bool):
-    """
-    Delete the given resource (based on ref)
+def delete(_: Info, object_type: str, ref: str, url: str, token: str, yes: bool) -> None:
+    """Delete a resource from the Kodexa platform.
 
-    object_type is the type of object to delete (e.g. 'project', 'assistant', 'store')
-    ref is the ref of the object to delete
+    Args:
+        object_type (str): Type of object to delete (project, assistant, store, etc.)
+        ref (str): Reference of the object to delete
+        url (str): URL of the Kodexa server
+        token (str): Access token for authentication
+        yes (bool): Skip confirmation prompt if True
+
+    Returns:
+        None
     """
     client = KodexaClient(url, token)
     client = KodexaClient(url=url, access_token=token)
@@ -1153,24 +1303,55 @@ def delete(_: Info, object_type: str, ref: str, url: str, token: str, yes: bool)
 @click.option(
     "--list/--no-list", default=False, help="List profile names"
 )
-def profile(_: Info, profile: str, delete: bool, list: bool):
-    """
-    With no args it will print the current profile, if you provide an argument it will set the profile
-    with the --delete option it will delete the provided profile
+def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
+    """Manage Kodexa platform profiles.
+
+    Args:
+        profile (str): Name of the profile to set or delete
+        delete (bool): Delete the specified profile if True
+        list (bool): List all available profiles if True
+
+    Returns:
+        None
+
+    If no arguments are provided, prints the current profile.
     """
     if profile:
-        if delete:
-            print(f"Deleting profile {profile}")
-            KodexaPlatform.delete_profile(profile)
-        else:
-            print(f"Setting profile to {profile}")
-            KodexaPlatform.set_profile(profile)
+        try:
+            if delete:
+                if not _validate_profile(profile):
+                    print(f"Profile '{profile}' does not exist")
+                    print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
+                    return
+                print(f"Deleting profile {profile}")
+                KodexaPlatform.delete_profile(profile)
+            else:
+                if not _validate_profile(profile):
+                    print(f"Profile '{profile}' does not exist")
+                    print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
+                    return
+                print(f"Setting profile to {profile}")
+                KodexaPlatform.set_profile(profile)
+        except Exception as e:
+            print(f"Error managing profile: {str(e)}")
+            return
     else:
         if list:
-            print(f"Profiles: {','.join(KodexaPlatform.list_profiles())}")
+            try:
+                profiles = KodexaPlatform.list_profiles()
+                print(f"Profiles: {','.join(profiles)}")
+            except Exception as e:
+                print(f"Error listing profiles: {str(e)}")
         else:
-            print(
-                f"Current profile: {get_current_kodexa_profile()} [{KodexaPlatform.get_url(get_current_kodexa_profile())}]")
+            try:
+                current = get_current_kodexa_profile()
+                if current:
+                    print(f"Current profile: {current} [{KodexaPlatform.get_url(current)}]")
+                else:
+                    print("No profile set")
+            except Exception as e:
+                print(f"Error getting current profile: {str(e)}")
+
 
 
 
@@ -1179,9 +1360,16 @@ def profile(_: Info, profile: str, delete: bool, list: bool):
 @click.argument("taxonomy_file", required=False)
 @click.option("--output-path", default=".", help="The path to output the dataclasses")
 @click.option("--output-file", default="dataclasses.py", help="The file to output the dataclasses to")
-def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str):
-    """
-    Generate dataclasses based on a taxonomy file
+def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str) -> None:
+    """Generate Python dataclasses from a taxonomy file.
+
+    Args:
+        taxonomy_file (str): Path to the taxonomy file (JSON or YAML)
+        output_path (str): Directory to output generated files (default: ".")
+        output_file (str): Name of the output file (default: "dataclasses.py")
+
+    Returns:
+        None
     """
     if taxonomy_file is None:
         print("You must provide a taxonomy file")
@@ -1205,15 +1393,20 @@ def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str)
 @click.option(
     "--url", default=None, help="The URL to the Kodexa server"
 )
-@click.option("--profile", default=None, help="The name of the profile to create")
 @click.option("--token", default=None, help="Access token")
-def login(_: Info, url=None, profile=None, token=None):
-    """Logs into the specified platform environment using the email address and password provided,
-    then downloads and stores the personal access token (PAT) of the user.
+def login(_: Info, url: Optional[str] = None, token: Optional[str] = None) -> None:
+    """Log into a Kodexa platform instance.
 
-    Once successfully logged in, calls to remote actions, pipelines, and workflows will be made to the
-    platform that was set via this login function and will use the stored PAT for authentication.
+    Args:
+        url (Optional[str]): URL of the Kodexa server (default: platform.kodexa.ai)
+        token (Optional[str]): Access token for authentication
 
+    Returns:
+        None
+
+    After login, the access token is stored and used for all subsequent API calls.
+    If arguments are not provided, they will be prompted for interactively.
+    Use the global --profile option to specify which profile to create or update.
     """
     try:
         kodexa_url = url if url is not None else input("Enter the Kodexa URL (https://platform.kodexa.ai): ")
@@ -1229,7 +1422,10 @@ def login(_: Info, url=None, profile=None, token=None):
             print("Using default as https://platform.kodexa.ai")
             kodexa_url = "https://platform.kodexa.ai"
         token = token if token is not None else input("Enter your token: ")
-        profile_name = profile if profile is not None else input("Enter your profile name (default): ")
+        
+        # Get profile from context or prompt for default
+        ctx = click.get_current_context(silent=True)
+        profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None else input("Enter your profile name (default): ")
     except:
         import better_exceptions
         import sys
@@ -1247,12 +1443,13 @@ def login(_: Info, url=None, profile=None, token=None):
 
 @cli.command()
 @pass_info
-def version(_: Info):
-    """
-    Get the version of the CLI
+def version(_: Info) -> None:
+    """Get the installed version of the Kodexa CLI.
 
+    Returns:
+        None
     """
-    print("Kodexa Version:",  importlib.metadata.version("kodexa"))
+    print("Kodexa Version:", metadata.version("kodexa"))
 
 
 @cli.command()
@@ -1293,15 +1490,28 @@ def package(
         path: str,
         output: str,
         version: str,
-        files: list[str] = None,
+        files: Optional[list[str]] = None,
         helm: bool = False,
         package_name: Optional[str] = None,
         repository: str = "kodexa",
         strip_version_build: bool = False,
         update_resource_versions: bool = True,
-):
-    """
-    Package an extension pack based on the kodexa.yml file
+) -> None:
+    """Package an extension pack based on the kodexa.yml file.
+
+    Args:
+        path (str): Path to folder containing kodexa.yml
+        output (str): Path to output folder for packaged files
+        version (str): Version number for the package
+        files (Optional[list[str]]): List of files to package (default: ["kodexa.yml"])
+        helm (bool): Generate a helm chart (default: False)
+        package_name (Optional[str]): Name of the package for models
+        repository (str): Repository to use (default: "kodexa")
+        strip_version_build (bool): Strip build number from version (default: False)
+        update_resource_versions (bool): Update resource versions to match pack (default: True)
+
+    Returns:
+        None
     """
 
     if files is None or len(files) == 0:
@@ -1345,13 +1555,6 @@ def package(
             versioned_metadata = os.path.join(
                 output,
                 f"{metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']}.json",
-            )
-            with open(versioned_metadata, "w") as outfile:
-                json.dump(metadata_obj, outfile)
-
-            # TODO this is a legacy thing, we should remove it in the 6.3.0 release
-            versioned_metadata = os.path.join(
-                output, f"{metadata_obj['slug']}-{metadata_obj['version']}.json"
             )
             with open(versioned_metadata, "w") as outfile:
                 json.dump(metadata_obj, outfile)

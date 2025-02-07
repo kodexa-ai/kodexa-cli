@@ -1,0 +1,64 @@
+import pytest
+from kodexa_cli.cli import cli
+
+def test_deploy_component(cli_runner, mock_kodexa_client):
+    """Test deploying a component."""
+    result = cli_runner.invoke(cli, ['deploy', 'test.json'])
+    assert result.exit_code == 0
+    mock_kodexa_client.deploy_component.assert_called_once()
+
+def test_deploy_with_profile(cli_runner, mock_kodexa_client, mock_kodexa_platform):
+    """Test deploying a component with profile override."""
+    result = cli_runner.invoke(cli, [
+        '--profile', 'dev',
+        'deploy',
+        'test.json'
+    ])
+    assert result.exit_code == 0
+    mock_kodexa_client.deploy_component.assert_called_once()
+
+def test_logs(cli_runner, mock_kodexa_client):
+    """Test viewing logs."""
+    result = cli_runner.invoke(cli, ['logs', 'test-component'])
+    assert result.exit_code == 0
+    mock_kodexa_client.get_logs.assert_called_once()
+
+def test_platform_info(cli_runner, mock_kodexa_client):
+    """Test getting platform information."""
+    result = cli_runner.invoke(cli, ['platform'])
+    assert result.exit_code == 0
+    mock_kodexa_client.get_platform_info.assert_called_once()
+
+def test_delete_component(cli_runner, mock_kodexa_client):
+    """Test deleting a component."""
+    result = cli_runner.invoke(cli, ['delete', 'test-component'])
+    assert result.exit_code == 0
+    mock_kodexa_client.delete_component.assert_called_once()
+
+def test_dataclasses(cli_runner, mock_kodexa_client):
+    """Test listing dataclasses."""
+    result = cli_runner.invoke(cli, ['dataclasses'])
+    assert result.exit_code == 0
+    mock_kodexa_client.get_dataclasses.assert_called_once()
+
+def test_version(cli_runner):
+    """Test version command."""
+    result = cli_runner.invoke(cli, ['version'])
+    assert result.exit_code == 0
+    assert result.output.strip() != ""
+
+def test_package(cli_runner, mock_kodexa_client):
+    """Test packaging a component."""
+    result = cli_runner.invoke(cli, ['package', 'test-component'])
+    assert result.exit_code == 0
+    mock_kodexa_client.package_component.assert_called_once()
+
+def test_package_with_profile(cli_runner, mock_kodexa_client, mock_kodexa_platform):
+    """Test packaging a component with profile override."""
+    result = cli_runner.invoke(cli, [
+        '--profile', 'dev',
+        'package',
+        'test-component'
+    ])
+    assert result.exit_code == 0
+    mock_kodexa_client.package_component.assert_called_once()
