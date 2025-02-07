@@ -731,20 +731,18 @@ def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
         client.create_project(project_id)
         
         # Create model.yml with metadata
-        metadata = {
-            "type": "model",
-            "name": project_id,
-            "version": "1.0.0",
-            "metadata": {
-                "type": "model",
-                "inferable": True,
-                "modelRuntimeRef": "kodexa/base-model-runtime",
-                "contents": ["model/**"]
-            }
-        }
+        metadata = f"""type: model
+name: {project_id}
+version: 1.0.0
+metadata:
+  type: model
+  inferable: true
+  modelRuntimeRef: kodexa/base-model-runtime
+  contents:
+    - model/**"""
         
         with open("model.yml", "w") as f:
-            yaml.dump(metadata, f)
+            f.write(metadata)
             
         # Create model directory and __init__.py
         os.makedirs("model", exist_ok=True)
