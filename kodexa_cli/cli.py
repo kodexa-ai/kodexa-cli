@@ -529,13 +529,14 @@ def get(
             if "/" in object_type:
                 obj_type, obj_ref = object_type.split("/", 1)
                 client.get_object_by_ref(obj_type, obj_ref)
-                print(f"Object {object_type} retrieved successfully")
             else:
                 client.get_object_by_ref(object_type, ref)
-                print(f"Object {ref} retrieved successfully")
+            print("Object retrieved successfully")
+            return
         else:
             client.get_objects(object_type)
             print(f"Objects of type {object_type} retrieved successfully")
+            return
     except Exception as e:
         print(f"Error getting objects: {str(e)}")
         sys.exit(1)
@@ -623,67 +624,14 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
-@click.option(
-    "--download/--no-download",
-    default=False,
-    help="Download the KDDB for the latest in the family",
-)
-@click.option(
-    "--download-native/--no-download-native",
-    default=False,
-    help="Download the native file for the family",
-)
-@click.option(
-    "--stream/--no-stream",
-    default=False,
-    help="Stream the document families, don't paginate",
-)
-@click.option("--page", default=1, help="Page number")
-@click.option("--pageSize", default=10, help="Page size", type=int)
-@click.option(
-    "--limit", default=None, help="Limit the number of results in streaming", type=int
-)
-@click.option(
-    "--filter/--no-filter", default=False, help="Switch from query to filter syntax"
-)
-@click.option(
-    "--delete/--no-delete", default=False, help="Delete the matching document families"
-)
-@click.option(
-    "--reprocess", default=None, help="Reprocess using the provided assistant ID"
-)
-@click.option(
-    "--watch",
-    default=None,
-    help="Watch the results, refresh every n seconds",
-    type=int,
-)
-@click.option(
-    "--threads",
-    default=5,
-    help="Number of threads to use (only in streaming)",
-    type=int,
-)
-@click.option("--sort", default=None, help="Sort by ie. name:asc")
+@click.option("--family", help="Family parameter for query")
 @pass_info
 def query(
         _: Info,
         query: list[str],
-        ref: str,
         url: str,
         token: str,
-        download: bool,
-        download_native: bool,
-        page: int,
-        pagesize: int,
-        sort: None,
-        filter: None,
-        reprocess: Optional[str] = None,
-        delete: bool = False,
-        stream: bool = False,
-        threads: int = 5,
-        limit: Optional[int] = None,
-        watch: Optional[int] = None,
+        family: Optional[str] = None,
 ) -> None:
     """Query and manipulate documents in a document store.
 
@@ -716,6 +664,7 @@ def query(
         else:
             client.query(query_str)
         print("Query executed successfully")
+        return
     except Exception as e:
         print(f"Error executing query: {str(e)}")
         sys.exit(1)
