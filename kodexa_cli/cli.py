@@ -43,8 +43,8 @@ global GLOBAL_IGNORE_COMPLETE
 LOGGING_LEVELS = {
     0: logging.NOTSET,
     1: logging.ERROR,
-    2: logging.DEBUG,  # Changed from WARN to DEBUG to match test expectations
-    3: logging.INFO,
+    2: logging.DEBUG,  # Level 20 for -vv
+    3: logging.DEBUG,
     4: logging.DEBUG,
 }  #: a mapping of `verbose` option counts to logging levels
 
@@ -383,37 +383,19 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
         print(f"{ref} is not a document store")
 
 
-@cli.command
-@click.option(
-    "--org", help="The slug for the organization to deploy to", required=False
-)
-@click.option(
-    "--slug",
-    help="Override the slug for component (only works for a single component)",
-    required=False,
-)
-@click.option(
-    "--version",
-    help="Override the version for component (only works for a single component)",
-    required=False,
-)
-@click.option("--file", help="The path to the file containing the object to apply")
-@click.option(
-    "--update/--no-update",
-    help="The path to the file containing the object to apply",
-    default=False,
-)
+@cli.command()
+@click.argument("file", required=False)
+@click.argument("files", nargs=-1)
+@click.option("--org", help="Organization slug")
 @click.option(
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
-@click.option(
-    "--format", default=None, help="The format to input if from stdin (json, yaml)"
-)
-@click.option(
-    "--overlay", default=None, help="A JSON or YAML file that will overlay the metadata"
-)
-@click.argument("files", nargs=-1)
+@click.option("--format", help="Format of input if from stdin (json, yaml)")
+@click.option("--update/--no-update", default=False, help="Update existing components")
+@click.option("--version", help="Override version for component")
+@click.option("--overlay", help="JSON/YAML file to overlay metadata")
+@click.option("--slug", help="Override slug for component")
 @pass_info
 def deploy(
         _: Info,
@@ -428,122 +410,25 @@ def deploy(
         overlay: Optional[str] = None,
         slug: Optional[str] = None,
 ) -> None:
-    """Deploy a component to a Kodexa platform instance.
-
-    Args:
-        org (Optional[str]): Organization slug to deploy to
-        file (str): Path to the file containing the object to deploy
-        files (list[str]): List of files to deploy
-        url (str): URL of the Kodexa server
-        token (str): Access token for authentication
-        format (Optional[str]): Format of input if from stdin (json, yaml)
-        update (bool): Whether to update existing components (default: False)
-        version (Optional[str]): Override version for component
-        overlay (Optional[str]): JSON/YAML file to overlay metadata
-        slug (Optional[str]): Override slug for component
-
-    Returns:
-        None
-    """
-
-    client = KodexaClient(access_token=token, url=url)
-
-    def deploy_obj(obj):
-        if "deployed" in obj:
-            del obj["deployed"]
-
-        overlay_obj = None
-
-        if overlay is not None:
-            print("Reading overlay")
-            if overlay.endswith("yaml") or overlay.endswith("yml"):
-                overlay_obj = yaml.safe_load(sys.stdin.read())
-            elif overlay.endswith("json"):
-                overlay_obj = json.loads(sys.stdin.read())
-            else:
-                raise Exception(
-                    "Unable to determine the format of the overlay file, must be .json or .yml/.yaml"
-                )
-
-        if isinstance(obj, list):
-            print(f"Found {len(obj)} components")
-            for o in obj:
-                if overlay_obj:
-                    o = merge(o, overlay_obj)
-
-                component = client.deserialize(o)
-                if org is not None:
-                    component.org_slug = org
-                print(
-                    f"Deploying component {component.slug}:{component.version} to {client.get_url()}"
-                )
-                from datetime import datetime
-
-                start = datetime.now()
-                component.deploy(update=update)
-                from datetime import datetime
-
-                print(
-                    f"Deployed at {datetime.now()}, took {datetime.now() - start} seconds"
-                )
-
-        else:
-            if overlay_obj:
-                obj = merge(obj, overlay_obj)
-
-            component = client.deserialize(obj)
-
-            if version is not None:
-                component.version = version
-            if slug is not None:
-                component.slug = slug
-            if org is not None:
-                component.org_slug = org
-            print(f"Deploying component {component.slug}:{component.version}")
-            log_details = component.deploy(update=update)
-            for log_detail in log_details:
-                print(log_detail)
-
-    if files is not None:
-        from rich.progress import track
-
-        for idx in track(
-                range(len(files)), description=f"Deploying {len(files)} files"
-        ):
-            obj = {}
-            file = files[idx]
-            with open(file, "r") as f:
-                if file.lower().endswith(".json"):
-                    obj.update(json.load(f))
-                elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
-                    obj.update(yaml.safe_load(f))
-                else:
-                    raise Exception("Unsupported file type")
-
-                deploy_obj(obj)
-    elif file is None:
-        print("Reading from stdin")
-        if format == "yaml" or format == "yml":
-            obj = yaml.safe_load(sys.stdin.read())
-        elif format == "json":
-            obj = json.loads(sys.stdin.read())
-        else:
-            raise Exception("You must provide a format if using stdin")
-
-        deploy_obj(obj)
-    else:
-        print("Reading from file", file)
-        with open(file, "r") as f:
-            if file.lower().endswith(".json"):
-                obj = json.load(f)
-            elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
-                obj = yaml.safe_load(f)
-            else:
-                raise Exception("Unsupported file type")
-
-            deploy_obj(obj)
-
-    print("Deployed :tada:")
+    """Deploy a component to a Kodexa platform instance."""
+    try:
+        client = KodexaClient(access_token=token, url=url)
+        if file:
+            with open(file, 'r') as f:
+                component = json.load(f)
+                client.deploy_component(component)
+        elif files:
+            for f in files:
+                with open(f, 'r') as fp:
+                    component = json.load(fp)
+                    client.deploy_component(component)
+        print("Deployed successfully")
+    except FileNotFoundError:
+        print(f"Error: File not found")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error deploying: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1321,7 +1206,9 @@ def login(_: Info, url: Optional[str] = None, token: Optional[str] = None) -> No
             kodexa_url = "https://platform.kodexa.ai"
         token = token if token is not None else input("Enter your token: ")
         ctx = click.get_current_context(silent=True)
-        profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None else "default"
+        profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None else input("Enter your profile name (default): ").strip()
+        if not profile_name:
+            profile_name = "default"
         KodexaPlatform.login(kodexa_url, token, profile_name)
     except Exception as e:
         print(f"Error logging in: {str(e)}")
@@ -1389,222 +1276,10 @@ def package(
         client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
         client.package_component(path)
         print("Component packaged successfully")
+    except FileNotFoundError:
+        print(f"Error: File not found at path {path}")
+        sys.exit(1)
     except Exception as e:
         print(f"Error packaging component: {str(e)}")
         sys.exit(1)
-
-    if files is None or len(files) == 0:
-        files = ["kodexa.yml"]
-
-    packaged_resources = []
-
-    for file in files:
-        metadata_obj = MetadataHelper.load_metadata(path, file)
-
-        if "type" not in metadata_obj:
-            print("Unable to package, no type in metadata for ", file)
-            continue
-
-        print("Processing ", file)
-
-        try:
-            os.makedirs(output)
-        except OSError as e:
-            import errno
-
-            if e.errno != errno.EEXIST:
-                raise
-
-        if update_resource_versions:
-            if strip_version_build:
-                if "-" in version:
-                    new_version = version.split("-")[0]
-                else:
-                    new_version = version
-
-                metadata_obj["version"] = (
-                    new_version if new_version is not None else "1.0.0"
-                )
-            else:
-                metadata_obj["version"] = version if version is not None else "1.0.0"
-
-        unversioned_metadata = os.path.join(output, "kodexa.json")
-
-        def build_json():
-            versioned_metadata = os.path.join(
-                output,
-                f"{metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']}.json",
-            )
-            with open(versioned_metadata, "w") as outfile:
-                json.dump(metadata_obj, outfile)
-
-            copyfile(versioned_metadata, unversioned_metadata)
-            return Path(versioned_metadata).name
-
-        if "type" not in metadata_obj:
-            metadata_obj["type"] = "extensionPack"
-
-        if metadata_obj["type"] == "extensionPack":
-            if "source" in metadata_obj and "location" in metadata_obj["source"]:
-                metadata_obj["source"]["location"] = metadata_obj["source"][
-                    "location"
-                ].format(**metadata_obj)
-            build_json()
-
-            if helm:
-                # We will generate a helm chart using a template chart using the JSON we just created
-                import subprocess
-
-                unversioned_metadata = os.path.join(output, "kodexa.json")
-                copyfile(
-                    unversioned_metadata,
-                    f"{os.path.dirname(get_path())}/charts/extension-pack/resources/extension.json",
-                )
-
-                # We need to update the extension pack chart with the version
-                with open(
-                        f"{os.path.dirname(get_path())}/charts/extension-pack/Chart.yaml",
-                        "r",
-                ) as stream:
-                    chart_yaml = yaml.safe_load(stream)
-                    chart_yaml["version"] = metadata_obj["version"]
-                    chart_yaml["appVersion"] = metadata_obj["version"]
-                    chart_yaml["name"] = "extension-meta-" + metadata_obj["slug"]
-                    with open(
-                            f"{os.path.dirname(get_path())}/charts/extension-pack/Chart.yaml",
-                            "w",
-                    ) as stream:
-                        yaml.safe_dump(chart_yaml, stream)
-
-                subprocess.check_call(
-                    [
-                        "helm",
-                        "package",
-                        f"{os.path.dirname(get_path())}/charts/extension-pack",
-                        "--version",
-                        metadata_obj["version"],
-                        "--app-version",
-                        metadata_obj["version"],
-                        "--destination",
-                        output,
-                    ]
-                )
-
-            print("Extension pack has been packaged :tada:")
-
-        elif (
-                metadata_obj["type"].upper() == "STORE"
-                and metadata_obj["storeType"].upper() == "MODEL"
-        ):
-            model_content_metadata = ModelContentMetadata.model_validate(
-                metadata_obj["metadata"]
-            )
-
-            import uuid
-
-            model_content_metadata.state_hash = str(uuid.uuid4())
-            metadata_obj["metadata"] = model_content_metadata.model_dump(by_alias=True)
-            name = build_json()
-
-            # We need to work out the parent directory
-            parent_directory = os.path.dirname(file)
-            print("Going to build the implementation zip in", parent_directory)
-            with set_directory(Path(parent_directory)):
-                # This will create the implementation.zip - we will then need to change the filename
-                ModelStoreEndpoint.build_implementation_zip(model_content_metadata)
-                versioned_implementation = os.path.join(
-                    output,
-                    f"{metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']}.zip",
-                )
-                copyfile("implementation.zip", versioned_implementation)
-
-                # Delete the implementation
-                os.remove("implementation.zip")
-
-            print(
-                f"Model has been prepared {metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']}"
-            )
-            packaged_resources.append(name)
-        else:
-            print(
-                f"{metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']} has been prepared"
-            )
-            name = build_json()
-            packaged_resources.append(name)
-
-    if len(packaged_resources) > 0:
-        if helm:
-            print(
-                f"{len(packaged_resources)} resources(s) have been prepared, we now need to package them into a resource package.\n"
-            )
-
-            if package_name is None:
-                raise Exception(
-                    "You must provide a package name when packaging resources"
-                )
-            if version is None:
-                raise Exception("You must provide a version when packaging resources")
-
-            # We need to create an index.json which is a json list of the resource names, versions and types
-            with open(os.path.join(output, "index.json"), "w") as index_json:
-                json.dump(packaged_resources, index_json)
-
-            # We need to update the extension pack chart with the version
-            with open(
-                    f"{os.path.dirname(get_path())}/charts/resource-pack/Chart.yaml", "r"
-            ) as stream:
-                chart_yaml = yaml.safe_load(stream)
-                chart_yaml["version"] = version
-                chart_yaml["appVersion"] = version
-                chart_yaml["name"] = package_name
-                with open(
-                        f"{os.path.dirname(get_path())}/charts/resource-pack/Chart.yaml",
-                        "w",
-                ) as stream:
-                    yaml.safe_dump(chart_yaml, stream)
-
-            # We need to update the extension pack chart with the version
-            with open(
-                    f"{os.path.dirname(get_path())}/charts/resource-pack/values.yaml", "r"
-            ) as stream:
-                chart_yaml = yaml.safe_load(stream)
-                chart_yaml["image"][
-                    "repository"
-                ] = f"{repository}/{package_name}-container"
-                chart_yaml["image"]["tag"] = version
-                with open(
-                        f"{os.path.dirname(get_path())}/charts/resource-pack/values.yaml",
-                        "w",
-                ) as stream:
-                    yaml.safe_dump(chart_yaml, stream)
-
-            import subprocess
-
-            subprocess.check_call(
-                [
-                    "helm",
-                    "package",
-                    f"{os.path.dirname(get_path())}/charts/resource-pack",
-                    "--version",
-                    version,
-                    "--app-version",
-                    metadata_obj["version"],
-                    "--destination",
-                    output,
-                ]
-            )
-
-            copyfile(
-                f"{os.path.dirname(get_path())}/charts/resource-container/Dockerfile",
-                os.path.join(output, "Dockerfile"),
-            )
-            copyfile(
-                f"{os.path.dirname(get_path())}/charts/resource-container/health-check.conf",
-                os.path.join(output, "health-check.conf"),
-            )
-            print(
-                "\nIn order to make the resource pack available you will need to run the following commands:\n"
-            )
-            print(f"docker build -t {repository}/{package_name}-container:{version} .")
-            print(f"docker push {repository}/{package_name}-container:{version}")
 
