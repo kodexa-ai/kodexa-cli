@@ -82,23 +82,50 @@ def get_path():
     return os.path.abspath(__file__)
 
 
-def get_current_kodexa_profile():
+def _validate_profile(profile: str) -> bool:
+    """Check if a profile exists in the Kodexa platform configuration.
+
+    Args:
+        profile (str): Name of the profile to validate
+
+    Returns:
+        bool: True if profile exists, False if profile doesn't exist or on error
+    """
     try:
+        profiles = KodexaPlatform.list_profiles()
+        return profile in profiles
+    except Exception:
+        return False
+
+def get_current_kodexa_profile() -> str:
+    """Get the current Kodexa profile name.
+
+    Returns:
+        str: Name of the current profile, or empty string if no profile is set or on error
+    """
+    try:
+        # Get current context's Info object if it exists
+        ctx = click.get_current_context(silent=True)
+        if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None:
+            return ctx.obj.profile
         return KodexaPlatform.get_current_profile()
-    except:
+    except Exception as e:
+        logging.debug(f"Error getting current profile: {str(e)}")
         return ""
 
 
 def get_current_kodexa_url():
     try:
-        return KodexaPlatform.get_url()
+        profile = get_current_kodexa_profile()
+        return KodexaPlatform.get_url(profile)
     except:
         return ""
 
 
 def get_current_access_token():
     try:
-        return KodexaPlatform.get_access_token()
+        profile = get_current_kodexa_profile()
+        return KodexaPlatform.get_access_token(profile)
     except:
         return ""
 
@@ -128,6 +155,7 @@ class Info(object):
     def __init__(self):  # Note: This object must have an empty constructor.
         """Create a new instance."""
         self.verbose: int = 0
+        self.profile: Optional[str] = None
 
 
 # pass_info is a decorator for functions that pass 'Info' objects.
@@ -191,13 +219,15 @@ class MetadataHelper:
 # tasks).
 @click.group()
 @click.option("--verbose", "-v", count=True, help="Enable verbose output.")
+@click.option("--profile", help="Override the profile to use for this command")
 @pass_info
-def cli(info: Info, verbose: int) -> None:
+def cli(info: Info, verbose: int, profile: Optional[str] = None) -> None:
     """Initialize the CLI with the specified verbosity level.
 
     Args:
         info (Info): Information object to pass data between CLI functions
         verbose (int): Verbosity level for logging output
+        profile (Optional[str]): Override the profile to use for this command
 
     Returns:
         None
@@ -215,6 +245,14 @@ def cli(info: Info, verbose: int) -> None:
             )
         )
     info.verbose = verbose
+    
+    # Handle profile override
+    if profile is not None:
+        if not _validate_profile(profile):
+            print(f"Profile '{profile}' does not exist")
+            print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
+            sys.exit(1)
+        info.profile = profile
 
 
 def safe_entry_point() -> None:
@@ -1265,6 +1303,7 @@ def delete(_: Info, object_type: str, ref: str, url: str, token: str, yes: bool)
 @click.option(
     "--list/--no-list", default=False, help="List profile names"
 )
+<<<<<<< HEAD
 def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
     """Manage Kodexa platform profiles.
 
@@ -1277,20 +1316,60 @@ def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
         None
 
     If no arguments are provided, prints the current profile.
+||||||| 432c4e6
+def profile(_: Info, profile: str, delete: bool, list: bool):
+    """
+    With no args it will print the current profile, if you provide an argument it will set the profile
+    with the --delete option it will delete the provided profile
+=======
+def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
+    """Manage Kodexa platform profiles.
+
+    Args:
+        profile (str): Name of the profile to set or delete
+        delete (bool): Delete the specified profile if True
+        list (bool): List all available profiles if True
+
+    Returns:
+        None
+>>>>>>> fix/1738941144-improve-profile-error-handling
     """
     if profile:
-        if delete:
-            print(f"Deleting profile {profile}")
-            KodexaPlatform.delete_profile(profile)
-        else:
-            print(f"Setting profile to {profile}")
-            KodexaPlatform.set_profile(profile)
+        try:
+            if delete:
+                if not _validate_profile(profile):
+                    print(f"Profile '{profile}' does not exist")
+                    print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
+                    return
+                print(f"Deleting profile {profile}")
+                KodexaPlatform.delete_profile(profile)
+            else:
+                if not _validate_profile(profile):
+                    print(f"Profile '{profile}' does not exist")
+                    print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
+                    return
+                print(f"Setting profile to {profile}")
+                KodexaPlatform.set_profile(profile)
+        except Exception as e:
+            print(f"Error managing profile: {str(e)}")
+            return
     else:
         if list:
-            print(f"Profiles: {','.join(KodexaPlatform.list_profiles())}")
+            try:
+                profiles = KodexaPlatform.list_profiles()
+                print(f"Profiles: {','.join(profiles)}")
+            except Exception as e:
+                print(f"Error listing profiles: {str(e)}")
         else:
-            print(
-                f"Current profile: {get_current_kodexa_profile()} [{KodexaPlatform.get_url(get_current_kodexa_profile())}]")
+            try:
+                current = get_current_kodexa_profile()
+                if current:
+                    print(f"Current profile: {current} [{KodexaPlatform.get_url(current)}]")
+                else:
+                    print("No profile set")
+            except Exception as e:
+                print(f"Error getting current profile: {str(e)}")
+
 
 
 
@@ -1332,21 +1411,35 @@ def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str)
 @click.option(
     "--url", default=None, help="The URL to the Kodexa server"
 )
-@click.option("--profile", default=None, help="The name of the profile to create")
 @click.option("--token", default=None, help="Access token")
+<<<<<<< HEAD
 def login(_: Info, url: Optional[str] = None, profile: Optional[str] = None, token: Optional[str] = None) -> None:
     """Log into a Kodexa platform instance.
+||||||| 432c4e6
+def login(_: Info, url=None, profile=None, token=None):
+    """Logs into the specified platform environment using the email address and password provided,
+    then downloads and stores the personal access token (PAT) of the user.
+=======
+def login(_: Info, url=None, token=None):
+    """Logs into the specified platform environment using the email address and password provided,
+    then downloads and stores the personal access token (PAT) of the user.
+>>>>>>> fix/1738941144-improve-profile-error-handling
 
     Args:
         url (Optional[str]): URL of the Kodexa server (default: platform.kodexa.ai)
         profile (Optional[str]): Name of the profile to create
         token (Optional[str]): Access token for authentication
 
+<<<<<<< HEAD
     Returns:
         None
 
     After login, the access token is stored and used for all subsequent API calls.
     If arguments are not provided, they will be prompted for interactively.
+||||||| 432c4e6
+=======
+    Use the global --profile option to specify which profile to create or update.
+>>>>>>> fix/1738941144-improve-profile-error-handling
     """
     try:
         kodexa_url = url if url is not None else input("Enter the Kodexa URL (https://platform.kodexa.ai): ")
@@ -1362,7 +1455,10 @@ def login(_: Info, url: Optional[str] = None, profile: Optional[str] = None, tok
             print("Using default as https://platform.kodexa.ai")
             kodexa_url = "https://platform.kodexa.ai"
         token = token if token is not None else input("Enter your token: ")
-        profile_name = profile if profile is not None else input("Enter your profile name (default): ")
+        
+        # Get profile from context or prompt for default
+        ctx = click.get_current_context(silent=True)
+        profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None else input("Enter your profile name (default): ")
     except:
         import better_exceptions
         import sys
