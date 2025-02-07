@@ -729,6 +729,34 @@ def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
     try:
         client = KodexaClient(url=url, access_token=token)
         client.create_project(project_id)
+        
+        # Create model.yml with metadata
+        metadata = {
+            "type": "model",
+            "name": project_id,
+            "version": "1.0.0",
+            "metadata": {
+                "type": "model",
+                "inferable": True,
+                "modelRuntimeRef": "kodexa/base-model-runtime",
+                "contents": ["model/**"]
+            }
+        }
+        
+        with open("model.yml", "w") as f:
+            yaml.dump(metadata, f)
+            
+        # Create model directory and __init__.py
+        os.makedirs("model", exist_ok=True)
+        with open("model/__init__.py", "w") as f:
+            f.write("""import logging
+
+logger = logging.getLogger()
+
+def infer(document):
+    logger.info("Hello World")
+    return document
+""")
         print("Project bootstrapped successfully")
     except Exception as e:
         print(f"Error bootstrapping project: {str(e)}")
