@@ -3,10 +3,35 @@ name: Kodexa CLI Python Package
 on:
   push:
     branches:
-      - main
+      - '*'
+
 jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run image
+        uses: abatilo/actions-poetry@v2
+      - name: Install dependencies
+        run: poetry install
+      - name: Lint with flake8
+        run: |
+          poetry run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          poetry run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          yes | poetry run mypy --install-types kodexa_cli || true
+      - name: Test with pytest
+        run: |
+          poetry run pytest
+
   build-and-release:
     name: Build, Package & Release
+    needs: test
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -24,25 +49,12 @@ jobs:
         run: |
           BRANCH_NAME=$(echo $GITHUB_REF | sed 's/refs\/heads\///')
           VERSION=$(poetry version --short)
-          MINOR_PATCH_PART=$(echo $VERSION | awk -F '.' '{print $1"."$2}')
-          PATCH_PART=$(echo $VERSION | awk -F '.' '{print substr($NF,1,1)}')
-          if [[ $BRANCH_NAME == "fix"* || $BRANCH_NAME == "bugs"* ]]; then
-            NEW_LATEST_PATCH_PART=$((PATCH_PART+1))b${GITHUB_RUN_ID}
-          elif [[ $BRANCH_NAME == "feature"* ]]; then
-            NEW_LATEST_PATCH_PART=$((PATCH_PART+1))a${GITHUB_RUN_ID}
-          elif [[ $BRANCH_NAME == "test"* ]]; then
-            NEW_LATEST_PATCH_PART=$((PATCH_PART+1))rc${GITHUB_RUN_ID}
-          elif [[ $BRANCH_NAME == "main"* ]]; then
-            poetry version patch
-            VERSION=$(poetry version --short)
-            MINOR_PATCH_PART=${VERSION#*.}
-            LAST_VERSION_PART_PREFIX=${MINOR_PATCH_PART%??}
-            PATCH_PART=${LAST_VERSION_PART_PREFIX%.*}
-            NEW_LATEST_PATCH_PART=${PATCH_PART}${GITHUB_RUN_ID}
-          else
-            echo "Invalid branch name"
-            exit 1
-          fi
+          poetry version patch
+          VERSION=$(poetry version --short)
+          MINOR_PATCH_PART=${VERSION#*.}
+          LAST_VERSION_PART_PREFIX=${MINOR_PATCH_PART%??}
+          PATCH_PART=${LAST_VERSION_PART_PREFIX%.*}
+          NEW_LATEST_PATCH_PART=${PATCH_PART}${GITHUB_RUN_ID}
           NEW_VERSION=${VERSION%.*}.${NEW_LATEST_PATCH_PART}
           echo $NEW_VERSION
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
@@ -50,14 +62,6 @@ jobs:
           poetry version $NEW_VERSION --no-ansi
       - name: Install dependencies
         run: poetry install
-      - name: Lint with flake8
-        run: |
-          poetry run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          poetry run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-          yes | poetry run mypy --install-types kodexa_cli || true
-      - name: Test with pytest
-        run: |
-          poetry run pytest
       - name: Build Package
         run: |
           poetry build
@@ -66,9 +70,9 @@ jobs:
           poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
           poetry publish
 
-
   build-executables:
     needs: build-and-release
+    if: github.ref == 'refs/heads/main'
     name: Build ${{ matrix.os }} Executable
     runs-on: ${{ matrix.os }}
     strategy:
@@ -104,6 +108,7 @@ jobs:
 
   create-release:
     needs: [ build-and-release, build-executables ]
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
