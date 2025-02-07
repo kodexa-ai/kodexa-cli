@@ -526,10 +526,10 @@ def get(
     try:
         client = KodexaClient(url=url, access_token=token)
         if ref:
-            if "/" in ref:
-                obj_type, obj_ref = ref.split("/", 1)
+            if "/" in object_type:
+                obj_type, obj_ref = object_type.split("/", 1)
                 client.get_object_by_ref(obj_type, obj_ref)
-                print(f"Object {ref} retrieved successfully")
+                print(f"Object {object_type} retrieved successfully")
             else:
                 client.get_object_by_ref(object_type, ref)
                 print(f"Object {ref} retrieved successfully")
@@ -711,7 +711,10 @@ def query(
     try:
         client = KodexaClient(url=url, access_token=token)
         query_str = " ".join(list(query))
-        client.query(query_str)
+        if family:
+            client.query(query_str, family=family)
+        else:
+            client.query(query_str)
         print("Query executed successfully")
     except Exception as e:
         print(f"Error executing query: {str(e)}")
