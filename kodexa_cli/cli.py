@@ -104,6 +104,10 @@ def get_current_kodexa_profile() -> str:
         str: Name of the current profile, or empty string if no profile is set or on error
     """
     try:
+        # Get current context's Info object if it exists
+        ctx = click.get_current_context(silent=True)
+        if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None:
+            return ctx.obj.profile
         return KodexaPlatform.get_current_profile()
     except Exception as e:
         logging.debug(f"Error getting current profile: {str(e)}")
@@ -112,14 +116,16 @@ def get_current_kodexa_profile() -> str:
 
 def get_current_kodexa_url():
     try:
-        return KodexaPlatform.get_url()
+        profile = get_current_kodexa_profile()
+        return KodexaPlatform.get_url(profile)
     except:
         return ""
 
 
 def get_current_access_token():
     try:
-        return KodexaPlatform.get_access_token()
+        profile = get_current_kodexa_profile()
+        return KodexaPlatform.get_access_token(profile)
     except:
         return ""
 
@@ -149,6 +155,7 @@ class Info(object):
     def __init__(self):  # Note: This object must have an empty constructor.
         """Create a new instance."""
         self.verbose: int = 0
+        self.profile: Optional[str] = None
 
 
 # pass_info is a decorator for functions that pass 'Info' objects.
@@ -212,8 +219,9 @@ class MetadataHelper:
 # tasks).
 @click.group()
 @click.option("--verbose", "-v", count=True, help="Enable verbose output.")
+@click.option("--profile", help="Override the profile to use for this command")
 @pass_info
-def cli(info: Info, verbose: int):
+def cli(info: Info, verbose: int, profile: Optional[str] = None):
     # Use the verbosity count to determine the logging level...
     if verbose > 0:
         logging.root.setLevel(
@@ -227,6 +235,14 @@ def cli(info: Info, verbose: int):
             )
         )
     info.verbose = verbose
+    
+    # Handle profile override
+    if profile is not None:
+        if not _validate_profile(profile):
+            print(f"Profile '{profile}' does not exist")
+            print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
+            sys.exit(1)
+        info.profile = profile
 
 
 def safe_entry_point():
@@ -1255,15 +1271,15 @@ def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str)
 @click.option(
     "--url", default=None, help="The URL to the Kodexa server"
 )
-@click.option("--profile", default=None, help="The name of the profile to create")
 @click.option("--token", default=None, help="Access token")
-def login(_: Info, url=None, profile=None, token=None):
+def login(_: Info, url=None, token=None):
     """Logs into the specified platform environment using the email address and password provided,
     then downloads and stores the personal access token (PAT) of the user.
 
     Once successfully logged in, calls to remote actions, pipelines, and workflows will be made to the
     platform that was set via this login function and will use the stored PAT for authentication.
 
+    Use the global --profile option to specify which profile to create or update.
     """
     try:
         kodexa_url = url if url is not None else input("Enter the Kodexa URL (https://platform.kodexa.ai): ")
@@ -1279,7 +1295,10 @@ def login(_: Info, url=None, profile=None, token=None):
             print("Using default as https://platform.kodexa.ai")
             kodexa_url = "https://platform.kodexa.ai"
         token = token if token is not None else input("Enter your token: ")
-        profile_name = profile if profile is not None else input("Enter your profile name (default): ")
+        
+        # Get profile from context or prompt for default
+        ctx = click.get_current_context(silent=True)
+        profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None else input("Enter your profile name (default): ")
     except:
         import better_exceptions
         import sys
