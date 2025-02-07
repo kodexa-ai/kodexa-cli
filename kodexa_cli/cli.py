@@ -525,18 +525,16 @@ def get(
 
     try:
         client = KodexaClient(url=url, access_token=token)
-        if ref:
-            if "/" in object_type:
-                obj_type, obj_ref = object_type.split("/", 1)
-                client.get_object_by_ref(obj_type, obj_ref)
-            else:
-                client.get_object_by_ref(object_type, ref)
+        if "/" in object_type:
+            obj_type, obj_ref = object_type.split("/", 1)
+            client.get_object_by_ref(obj_type, obj_ref)
             print("Object retrieved successfully")
-            return
+        elif ref:
+            client.get_object_by_ref(object_type, ref)
+            print("Object retrieved successfully")
         else:
             client.get_objects(object_type)
             print(f"Objects of type {object_type} retrieved successfully")
-            return
     except Exception as e:
         print(f"Error getting objects: {str(e)}")
         sys.exit(1)
@@ -628,6 +626,7 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
 @pass_info
 def query(
         _: Info,
+        ref: str,
         query: list[str],
         url: str,
         token: str,
@@ -664,7 +663,6 @@ def query(
         else:
             client.query(query_str)
         print("Query executed successfully")
-        return
     except Exception as e:
         print(f"Error executing query: {str(e)}")
         sys.exit(1)
