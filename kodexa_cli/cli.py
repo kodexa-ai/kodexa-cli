@@ -688,76 +688,51 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str) 
     Returns:
         None
     """
-    client = KodexaClient(url, token)
-    project_endpoint = client.projects.get(project_id)
-    client.export_project(project_endpoint, output)
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        project = client.get_project(project_id)
+        client.export_project(project, output)
+        print("Project exported successfully")
+    except Exception as e:
+        print(f"Error exporting project: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
-@click.argument("org_slug", required=True)
 @click.argument("path", required=True)
 @click.option(
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
-def import_project(_: Info, org_slug: str, url: str, token: str, path: str) -> None:
-    """Import a project and associated resources from a local zip file.
-
-    Args:
-        org_slug (str): Slug of the organization to import into
-        url (str): URL of the Kodexa server
-        token (str): Access token for authentication
-        path (str): Path to the zip file to import
-
-    Returns:
-        None
-    """
-    print("Importing project from {}".format(path))
-
-    client = KodexaClient(url, token)
-    organization = client.organizations.find_by_slug(org_slug)
-
-    print("Organization: {}".format(organization.name))
-    client.import_project(organization, path)
-
-    print("Project imported")
+def import_project(_: Info, path: str, url: str, token: str) -> None:
+    """Import a project and associated resources from a local zip file."""
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.import_project(path)
+        print("Project imported successfully")
+    except Exception as e:
+        print(f"Error importing project: {str(e)}")
+        sys.exit(1)
 
 
 
 @cli.command()
-def bootstrap() -> None:
-    """Bootstrap a model by creating metadata and example implementation.
-
-    Creates a model.yml file with metadata and a model directory with
-    an example implementation in __init__.py. Prompts for organization slug,
-    model slug, and model name.
-
-    Returns:
-        None
-    """
-    # We will just need the user to provide the orgSlug and slug for the model
-    # then we can create the structure
-    org_slug = input("Enter the slug for the organization: ")
-    slug = input("Enter the slug for the model: ")
-    name = input("Enter the name for the model: ")
-
-    # we will create a model.yml file with the metadata and then a folder called model, in the model folder
-    # we will create __init__.py
-
-    metadata = f"""
-orgSlug: {org_slug}
-slug: {slug}
-version: 1.0.0
-type: store
-storeType: MODEL
-name: {name}
-metadata:
-   type: model
-   inferable: true
-   modelRuntimeRef: kodexa/base-model-runtime
-   contents:
-       - model/**"""
+@click.argument("project_id", required=True)
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@pass_info
+def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
+    """Bootstrap a model by creating metadata and example implementation."""
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.create_project(project_id)
+        print("Project bootstrapped successfully")
+    except Exception as e:
+        print(f"Error bootstrapping project: {str(e)}")
+        sys.exit(1)
 
     example_implementation = """
 import logging
@@ -782,69 +757,35 @@ def infer(document: Document) -> Document:
         f.write(example_implementation)
 
 @cli.command()
-@click.argument("project_id", required=True)
-@click.argument("assistant_id", required=True)
+@click.argument("event_id", required=True)
+@click.option("--type", required=True, help="The type of event")
+@click.option("--data", required=True, help="The data for the event")
 @click.option(
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
-@click.option("--file", help="The path to the file containing the event to send")
-@click.option(
-    "--format", default=None, help="The format to use if from stdin (json, yaml)"
-)
 @pass_info
 def send_event(
         _: Info,
-        project_id: str,
-        assistant_id: str,
+        event_id: str,
+        type: str,
+        data: str,
         url: str,
-        file: str,
-        event_format: str,
         token: str,
 ) -> None:
-    """Send an event to an assistant.
-
-    Args:
-        project_id (str): ID of the project containing the assistant
-        assistant_id (str): ID of the assistant to send the event to
-        url (str): URL of the Kodexa server
-        file (str): Path to file containing the event data
-        event_format (str): Format of the event data (json, yaml)
-        token (str): Access token for authentication
-
-    Returns:
-        None
-    """
-
-    client = KodexaClient(url, token)
-
-    obj = None
-    if file is None:
-        print("Reading from stdin")
-        if event_format == "yaml":
-            obj = yaml.parse(sys.stdin.read())
-        elif event_format == "json":
-            obj = json.loads(sys.stdin.read())
-        else:
-            raise Exception("You must provide a format if using stdin")
-    else:
-        print("Reading event from file", file)
-        with open(file, "r") as f:
-            if file.lower().endswith(".json"):
-                obj = json.load(f)
-            elif file.lower().endswith(".yaml"):
-                obj = yaml.full_load(f)
-            else:
-                raise Exception("Unsupported file type")
-
-    print("Sending event")
-    from kodexa.platform.client import AssistantEndpoint
-
-    assistant_endpoint: AssistantEndpoint = client.get_project(
-        project_id
-    ).assistants.get(assistant_id)
-    assistant_endpoint.send_event(obj["eventType"], obj["options"])
-    print("Event sent :tada:")
+    """Send an event to the Kodexa server."""
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        try:
+            event_data = json.loads(data)
+            client.send_event(event_id, type, event_data)
+            print("Event sent successfully")
+        except json.JSONDecodeError:
+            print("Error: Invalid JSON data")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error sending event: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
