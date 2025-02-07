@@ -1303,7 +1303,6 @@ def delete(_: Info, object_type: str, ref: str, url: str, token: str, yes: bool)
 @click.option(
     "--list/--no-list", default=False, help="List profile names"
 )
-<<<<<<< HEAD
 def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
     """Manage Kodexa platform profiles.
 
@@ -1316,23 +1315,6 @@ def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
         None
 
     If no arguments are provided, prints the current profile.
-||||||| 432c4e6
-def profile(_: Info, profile: str, delete: bool, list: bool):
-    """
-    With no args it will print the current profile, if you provide an argument it will set the profile
-    with the --delete option it will delete the provided profile
-=======
-def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
-    """Manage Kodexa platform profiles.
-
-    Args:
-        profile (str): Name of the profile to set or delete
-        delete (bool): Delete the specified profile if True
-        list (bool): List all available profiles if True
-
-    Returns:
-        None
->>>>>>> fix/1738941144-improve-profile-error-handling
     """
     if profile:
         try:
@@ -1412,34 +1394,19 @@ def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str)
     "--url", default=None, help="The URL to the Kodexa server"
 )
 @click.option("--token", default=None, help="Access token")
-<<<<<<< HEAD
-def login(_: Info, url: Optional[str] = None, profile: Optional[str] = None, token: Optional[str] = None) -> None:
+def login(_: Info, url: Optional[str] = None, token: Optional[str] = None) -> None:
     """Log into a Kodexa platform instance.
-||||||| 432c4e6
-def login(_: Info, url=None, profile=None, token=None):
-    """Logs into the specified platform environment using the email address and password provided,
-    then downloads and stores the personal access token (PAT) of the user.
-=======
-def login(_: Info, url=None, token=None):
-    """Logs into the specified platform environment using the email address and password provided,
-    then downloads and stores the personal access token (PAT) of the user.
->>>>>>> fix/1738941144-improve-profile-error-handling
 
     Args:
         url (Optional[str]): URL of the Kodexa server (default: platform.kodexa.ai)
-        profile (Optional[str]): Name of the profile to create
         token (Optional[str]): Access token for authentication
 
-<<<<<<< HEAD
     Returns:
         None
 
     After login, the access token is stored and used for all subsequent API calls.
     If arguments are not provided, they will be prompted for interactively.
-||||||| 432c4e6
-=======
     Use the global --profile option to specify which profile to create or update.
->>>>>>> fix/1738941144-improve-profile-error-handling
     """
     try:
         kodexa_url = url if url is not None else input("Enter the Kodexa URL (https://platform.kodexa.ai): ")
