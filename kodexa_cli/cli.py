@@ -1080,7 +1080,6 @@ def platform(_: Info, python: bool, show_token: bool) -> None:
 
 
 @cli.command()
-@click.argument("object_type")
 @click.argument("ref")
 @click.option(
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
@@ -1088,12 +1087,13 @@ def platform(_: Info, python: bool, show_token: bool) -> None:
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option("-y", "--yes", is_flag=True, help="Don't ask for confirmation")
 @pass_info
-def delete(_: Info, object_type: str, ref: str, url: str, token: str, yes: bool) -> None:
+def delete(_: Info, ref: str, url: str, token: str, yes: bool) -> None:
     """Delete a resource from the Kodexa platform."""
     try:
         client = KodexaClient(url=url, access_token=token)
         client.delete_component(ref)
         print(f"Component {ref} deleted successfully")
+        return
     except Exception as e:
         print(f"Error deleting component: {str(e)}")
         sys.exit(1)
