@@ -469,10 +469,13 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
     Returns:
         None
     """
-    # We are going to download the implementation of the component
-    client = KodexaClient(url=url, access_token=token)
-    model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
-    model_store_endpoint.download_implementation(output_file)
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.get_implementation(ref)
+        print(f"Implementation downloaded to {output_file}")
+    except Exception as e:
+        print(f"Error downloading implementation: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -520,64 +523,17 @@ def get(
         None
     """
 
-    client = KodexaClient(url=url, access_token=token)
-
-    from kodexa.platform.client import resolve_object_type
-
-    object_name, object_metadata = resolve_object_type(object_type)
-    global GLOBAL_IGNORE_COMPLETE
-
-    if "global" in object_metadata and object_metadata["global"]:
-        objects_endpoint = client.get_object_type(object_type)
-        if ref and not ref.isspace():
-            object_instance = objects_endpoint.get(ref)
-
-            if format == "json":
-                print(
-                    json.dumps(object_instance.model_dump(by_alias=True), indent=4),
-                    "json",
-                )
-                GLOBAL_IGNORE_COMPLETE = True
-            elif format == "yaml":
-                object_dict = object_instance.model_dump(by_alias=True)
-                print(yaml.dump(object_dict, indent=4), "yaml")
-                GLOBAL_IGNORE_COMPLETE = True
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        if ref:
+            client.get_object_by_ref(object_type, ref)
+            print(f"Object {ref} retrieved successfully")
         else:
-            print_object_table(
-                object_metadata, objects_endpoint, query, page, pagesize, sort, truncate
-            )
-    else:
-        if ref and not ref.isspace():
-            if "/" in ref:
-                object_instance = client.get_object_by_ref(
-                    object_metadata["plural"], ref
-                )
-
-                if format == "json":
-                    print(
-                        json.dumps(
-                            object_instance.model_dump(by_alias=True), indent=4
-                        )
-                    )
-                    GLOBAL_IGNORE_COMPLETE = True
-                elif format == "yaml" or not format:
-                    object_dict = object_instance.model_dump(by_alias=True)
-                    print(yaml.dump(object_dict, indent=4))
-                    GLOBAL_IGNORE_COMPLETE = True
-            else:
-                organization = client.organizations.find_by_slug(ref)
-
-                if organization is None:
-                    print(f"Could not find organization with slug {ref}")
-                    exit(1)
-
-                objects_endpoint = client.get_object_type(object_type, organization)
-                print_object_table(
-                    object_metadata, objects_endpoint, query, page, pagesize, sort, truncate
-                )
-        else:
-            print(f"You must provide a ref to get a specific object")
-            exit(1)
+            client.get_objects(object_type)
+            print(f"Objects of type {object_type} retrieved successfully")
+    except Exception as e:
+        print(f"Error getting objects: {str(e)}")
+        sys.exit(1)
 
 
 def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, query: str, page: int, pagesize: int, sort: Optional[str], truncate: bool) -> None:
@@ -747,138 +703,14 @@ def query(
     Returns:
         None
     """
-    client = KodexaClient(url=url, access_token=token)
-    from kodexa.platform.client import DocumentStoreEndpoint
-
-    query_str: str = " ".join(list(query))
-
-    document_store: DocumentStoreEndpoint = client.get_object_by_ref("store", ref)
-
-    while True:
-        if isinstance(document_store, DocumentStoreEndpoint):
-            if stream:
-                if filter:
-                    print(f"Streaming filter: {query}\n")
-                    page_of_document_families = document_store.stream_filter(
-                        query, sort, limit
-                    )
-                else:
-                    print(f"Streaming query: {query}\n")
-                    page_of_document_families = document_store.stream_query(
-                        query, sort, limit
-                    )
-            else:
-                if filter:
-                    print(f"Using filter: {query}\n")
-                    page_of_document_families: PageDocumentFamilyEndpoint = (
-                        document_store.filter(query, page, pagesize, sort)
-                    )
-                else:
-                    print(f"Using query: {query}\n")
-                    page_of_document_families: PageDocumentFamilyEndpoint = (
-                        document_store.query(query, page, pagesize, sort)
-                    )
-
-            if not stream:
-                from rich.table import Table
-
-                table = Table(title=f"Listing Document Family", title_style="bold blue")
-                column_list = ["path", "created", "modified", "size"]
-                # Create column header for the table
-                for col in column_list:
-                    table.add_column(col)
-
-                # Get column values
-                for objects_endpoint in page_of_document_families.content:
-                    row = []
-                    for col in column_list:
-                        try:
-                            value = str(getattr(objects_endpoint, col))
-                            row.append(value)
-                        except AttributeError:
-                            row.append("")
-                    table.add_row(*row, style="yellow")
-
-                from rich.console import Console
-
-                console = Console()
-                console.print(table)
-                total_pages = (
-                    page_of_document_families.total_pages
-                    if page_of_document_families.total_pages > 0
-                    else 1
-                )
-                console.print(
-                    f"\nPage [bold]{page_of_document_families.number + 1}[/bold] of [bold]{total_pages}[/bold] "
-                    f"(total of {page_of_document_families.total_elements} document families)"
-                )
-
-            # We want to go through all the endpoints to do the other actions
-            document_families = (
-                page_of_document_families
-                if stream
-                else page_of_document_families.content
-            )
-
-            if delete and not Confirm.ask(
-                    "You are sure you want to delete these families (this action can not be reverted)?"
-            ):
-                print("Aborting delete")
-                exit(1)
-
-            import concurrent.futures
-
-            if reprocess is not None:
-                # We need to get the assistant so we can reprocess
-                assistant = client.assistants.get(reprocess)
-                if assistant is None:
-                    print(f"Unable to find assistant with id {reprocess}")
-                    exit(1)
-
-                if not stream:
-                    print("You can't reprocess without streaming")
-                    exit(1)
-
-                print(f"Reprocessing with assistant {assistant.name}")
-
-            if stream:
-                print(f"Streaming document families (with {threads} threads)")
-                with concurrent.futures.ThreadPoolExecutor(
-                        max_workers=threads
-                ) as executor:
-
-                    def process_family(doc_family: DocumentFamilyEndpoint) -> None:
-                        if download:
-                            print(f"Downloading document for {doc_family.path}")
-                            doc_family.get_document().to_kddb().save(
-                                doc_family.path + ".kddb"
-                            )
-                        if download_native:
-                            print(
-                                f"Downloading native object for {doc_family.path}"
-                            )
-                            with open(doc_family.path + ".native", "wb") as f:
-                                f.write(doc_family.get_native())
-
-                        if delete:
-                            print(f"Deleting {doc_family.path}")
-                            doc_family.delete()
-
-                        if reprocess is not None:
-                            print(f"Reprocessing {doc_family.path}")
-                            doc_family.reprocess(assistant)
-
-                    executor.map(process_family, document_families)
-
-        else:
-            raise Exception("Unable to find document store with ref " + ref)
-
-        if not watch:
-            break
-        else:
-            import time
-
-            time.sleep(watch)
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        query_str = " ".join(list(query))
+        client.query_documents(ref, query_str)
+        print("Query executed successfully")
+    except Exception as e:
+        print(f"Error executing query: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
