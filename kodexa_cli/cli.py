@@ -730,8 +730,9 @@ def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
         client = KodexaClient(url=url, access_token=token)
         client.create_project(project_id)
         
-        # Create model.yml with metadata
-        metadata = f"""type: model
+        try:
+            # Create model.yml with metadata
+            metadata = f"""type: model
 name: {project_id}
 version: 1.0.0
 metadata:
@@ -740,14 +741,14 @@ metadata:
   modelRuntimeRef: kodexa/base-model-runtime
   contents:
     - model/**"""
-        
-        with open("model.yml", "w") as f:
-            f.write(metadata)
             
-        # Create model directory and __init__.py
-        os.makedirs("model", exist_ok=True)
-        with open("model/__init__.py", "w") as f:
-            f.write("""import logging
+            with open("model.yml", "w") as f:
+                f.write(metadata)
+                
+            # Create model directory and __init__.py
+            os.makedirs("model", exist_ok=True)
+            with open("model/__init__.py", "w") as f:
+                f.write("""import logging
 
 logger = logging.getLogger()
 
@@ -755,6 +756,10 @@ def infer(document):
     logger.info("Hello World")
     return document
 """)
+            print("Project bootstrapped successfully")
+        except Exception as e:
+            print(f"Error creating project files: {str(e)}")
+            sys.exit(1)
         print("Project bootstrapped successfully")
     except Exception as e:
         print(f"Error bootstrapping project: {str(e)}")
