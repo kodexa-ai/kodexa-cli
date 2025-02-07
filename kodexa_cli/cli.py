@@ -82,10 +82,31 @@ def get_path():
     return os.path.abspath(__file__)
 
 
-def get_current_kodexa_profile():
+def _validate_profile(profile: str) -> bool:
+    """Check if a profile exists in the Kodexa platform configuration.
+
+    Args:
+        profile (str): Name of the profile to validate
+
+    Returns:
+        bool: True if profile exists, False if profile doesn't exist or on error
+    """
+    try:
+        profiles = KodexaPlatform.list_profiles()
+        return profile in profiles
+    except Exception:
+        return False
+
+def get_current_kodexa_profile() -> str:
+    """Get the current Kodexa profile name.
+
+    Returns:
+        str: Name of the current profile, or empty string if no profile is set or on error
+    """
     try:
         return KodexaPlatform.get_current_profile()
-    except:
+    except Exception as e:
+        logging.debug(f"Error getting current profile: {str(e)}")
         return ""
 
 
@@ -1153,24 +1174,53 @@ def delete(_: Info, object_type: str, ref: str, url: str, token: str, yes: bool)
 @click.option(
     "--list/--no-list", default=False, help="List profile names"
 )
-def profile(_: Info, profile: str, delete: bool, list: bool):
-    """
-    With no args it will print the current profile, if you provide an argument it will set the profile
-    with the --delete option it will delete the provided profile
+def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
+    """Manage Kodexa platform profiles.
+
+    Args:
+        profile (str): Name of the profile to set or delete
+        delete (bool): Delete the specified profile if True
+        list (bool): List all available profiles if True
+
+    Returns:
+        None
     """
     if profile:
-        if delete:
-            print(f"Deleting profile {profile}")
-            KodexaPlatform.delete_profile(profile)
-        else:
-            print(f"Setting profile to {profile}")
-            KodexaPlatform.set_profile(profile)
+        try:
+            if delete:
+                if not _validate_profile(profile):
+                    print(f"Profile '{profile}' does not exist")
+                    print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
+                    return
+                print(f"Deleting profile {profile}")
+                KodexaPlatform.delete_profile(profile)
+            else:
+                if not _validate_profile(profile):
+                    print(f"Profile '{profile}' does not exist")
+                    print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
+                    return
+                print(f"Setting profile to {profile}")
+                KodexaPlatform.set_profile(profile)
+        except Exception as e:
+            print(f"Error managing profile: {str(e)}")
+            return
     else:
         if list:
-            print(f"Profiles: {','.join(KodexaPlatform.list_profiles())}")
+            try:
+                profiles = KodexaPlatform.list_profiles()
+                print(f"Profiles: {','.join(profiles)}")
+            except Exception as e:
+                print(f"Error listing profiles: {str(e)}")
         else:
-            print(
-                f"Current profile: {get_current_kodexa_profile()} [{KodexaPlatform.get_url(get_current_kodexa_profile())}]")
+            try:
+                current = get_current_kodexa_profile()
+                if current:
+                    print(f"Current profile: {current} [{KodexaPlatform.get_url(current)}]")
+                else:
+                    print("No profile set")
+            except Exception as e:
+                print(f"Error getting current profile: {str(e)}")
+
 
 
 
