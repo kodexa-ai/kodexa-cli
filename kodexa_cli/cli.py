@@ -1206,11 +1206,11 @@ def login(_: Info, url: Optional[str] = None, token: Optional[str] = None) -> No
             kodexa_url = "https://platform.kodexa.ai"
         token = token if token is not None else input("Enter your token: ")
         ctx = click.get_current_context(silent=True)
-        profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None else "default"
-        if url is None and token is None:  # Interactive mode
+        if url is None or token is None:  # Interactive mode
             profile_input = input("Enter your profile name (default): ").strip()
-            if profile_input:
-                profile_name = profile_input
+            profile_name = profile_input if profile_input else "default"
+        else:  # Command-line mode
+            profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None else "default"
         KodexaPlatform.login(kodexa_url, token, profile_name)
     except Exception as e:
         print(f"Error logging in: {str(e)}")
