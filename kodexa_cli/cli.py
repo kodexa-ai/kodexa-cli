@@ -478,8 +478,36 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
         sys.exit(1)
 
 
+def print_available_object_types():
+    """Print a table of available object types."""
+    from rich.table import Table
+    from rich.console import Console
+
+    table = Table(title="Available Object Types", title_style="bold blue")
+    table.add_column("Type", style="cyan")
+    table.add_column("Description", style="yellow")
+
+    # Add rows for each object type
+    object_types = {
+        "extensionPacks": "Extension packages for the platform",
+        "projects": "Kodexa projects",
+        "assistants": "AI assistants",
+        "executions": "Execution records",
+        "memberships": "Organization memberships",
+        "stores": "Document stores",
+        "organizations": "Organizations"
+    }
+
+    for obj_type, description in object_types.items():
+        table.add_row(obj_type, description)
+
+    console = Console()
+    console.print("\nPlease specify an object type to get. Available types:")
+    console.print(table)
+
+
 @cli.command()
-@click.argument("object_type", required=True)
+@click.argument("object_type", required=False)
 @click.argument("ref", required=False)
 @click.option(
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
@@ -494,11 +522,11 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
 @pass_info
 def get(
         _: Info,
-        object_type: str,
-        ref: Optional[str],
-        url: str,
-        token: str,
-        query: str,
+        object_type: Optional[str] = None,
+        ref: Optional[str] = None,
+        url: str = get_current_kodexa_url(),
+        token: str = get_current_access_token(),
+        query: str = "*",
         format: Optional[str] = None,
         page: int = 1,
         pagesize: int = 10,
@@ -508,7 +536,7 @@ def get(
     """List instances of a component or entity type.
 
     Args:
-        object_type (str): Type of object to list (component, document, execution, etc.)
+        object_type (Optional[str]): Type of object to list (component, document, execution, etc.)
         ref (Optional[str]): Reference to the specific object
         url (str): URL of the Kodexa server
         token (str): Access token for authentication
@@ -522,6 +550,9 @@ def get(
     Returns:
         None
     """
+    if not object_type:
+        print_available_object_types()
+        return
 
     try:
         client = KodexaClient(url=url, access_token=token)
