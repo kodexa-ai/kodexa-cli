@@ -495,7 +495,24 @@ def print_available_object_types():
         "executions": "Execution records",
         "memberships": "Organization memberships",
         "stores": "Document stores",
-        "organizations": "Organizations"
+        "organizations": "Organizations",
+        "documentFamily": "Document family collections",
+        "exception": "System exceptions",
+        "dashboard": "Project dashboards",
+        "dataForm": "Data form definitions",
+        "task": "System tasks",
+        "retainedGuidance": "Retained guidance sets",
+        "workspace": "Project workspaces",
+        "channel": "Communication channels",
+        "message": "System messages",
+        "action": "System actions",
+        "pipeline": "Processing pipelines",
+        "modelRuntime": "Model runtime environments",
+        "projectTemplate": "Project templates",
+        "assistantDefinition": "Assistant definitions",
+        "guidanceSet": "Guidance sets",
+        "credential": "System credentials",
+        "taxonomy": "Classification taxonomies"
     }
 
     for obj_type, description in object_types.items():
@@ -564,8 +581,8 @@ def get(
             client.get_object_by_ref(object_type, ref)
             print("Object retrieved successfully")
         else:
-            client.get_objects(object_type)
-            print(f"Objects of type {object_type} retrieved successfully")
+            objects = client.list(object_type)
+            print_object_table({"plural": object_type}, objects, query, page, pagesize, sort, truncate)
     except Exception as e:
         print(f"Error getting objects: {str(e)}")
         sys.exit(1)
