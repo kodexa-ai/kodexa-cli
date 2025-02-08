@@ -49,3 +49,23 @@ def test_get_current_access_token(mock_kodexa_platform):
     """Test get_current_access_token function."""
     mock_kodexa_platform.get_access_token.return_value = 'test-token'
     assert get_current_access_token() == 'test-token'
+
+
+def test_profiles_command(cli_runner, mock_kodexa_platform):
+    """Test profiles command."""
+    mock_kodexa_platform.list_profiles.return_value = ['default', 'dev']
+    mock_kodexa_platform.get_url.side_effect = lambda p: f'https://{p}.kodexa.ai'
+    
+    result = cli_runner.invoke(cli, ['profiles'])
+    assert result.exit_code == 0
+    assert 'default: https://default.kodexa.ai' in result.output
+    assert 'dev: https://dev.kodexa.ai' in result.output
+
+
+def test_profiles_command_error(cli_runner, mock_kodexa_platform):
+    """Test profiles command with error."""
+    mock_kodexa_platform.list_profiles.side_effect = Exception("Test error")
+    
+    result = cli_runner.invoke(cli, ['profiles'])
+    assert result.exit_code == 1
+    assert "Error listing profiles: Test error" in result.output
