@@ -23,5 +23,6 @@ def mock_kodexa_client():
     """Mock KodexaClient class."""
     with patch('kodexa_cli.cli.KodexaClient') as mock:
         client = MagicMock()
+        client.list.return_value = []  # Mock list() to return empty list by default
         mock.return_value = client
         yield client
