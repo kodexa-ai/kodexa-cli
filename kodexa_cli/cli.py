@@ -624,43 +624,45 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
         page_of_object_endpoints = objects_endpoint.list(
             query=query, page=page, page_size=pagesize, sort=sort
         )
+        # Get column values
+        if hasattr(page_of_object_endpoints, 'content'):
+            for objects_endpoint in page_of_object_endpoints.content:
+                row = []
+                for col in column_list:
+                    if col == "filename":
+                        filename = ""
+                        for content_object in objects_endpoint.content_objects:
+                            if content_object.metadata and "path" in content_object.metadata:
+                                filename = content_object.metadata["path"]
+                                break  # Stop searching if path is found
+                        row.append(filename)
+                    elif col == "assistant_name":
+                        assistant_name = ""
+                        if objects_endpoint.pipeline and objects_endpoint.pipeline.steps:
+                            for step in objects_endpoint.pipeline.steps:
+                                assistant_name = step.name
+                                break  # Stop searching if path is found
+                        row.append(assistant_name)
+                    else:
+                        try:
+                            value = str(getattr(objects_endpoint, col))
+                            row.append(value)
+                        except AttributeError:
+                            row.append("")
+                table.add_row(*row, style="yellow")
+
+        from rich.console import Console
+
+        console = Console()
+        console.print(table)
+        if hasattr(page_of_object_endpoints, 'number') and hasattr(page_of_object_endpoints, 'total_pages'):
+            console.print(
+                f"Page [bold]{page_of_object_endpoints.number + 1}[/bold] of [bold]{page_of_object_endpoints.total_pages}[/bold] "
+                f"(total of {page_of_object_endpoints.total_elements} objects)"
+            )
     except Exception as e:
         print("e:", e)
         raise e
-    # Get column values
-    for objects_endpoint in page_of_object_endpoints.content:
-        row = []
-        for col in column_list:
-            if col == "filename":
-                filename = ""
-                for content_object in objects_endpoint.content_objects:
-                    if content_object.metadata and "path" in content_object.metadata:
-                        filename = content_object.metadata["path"]
-                        break  # Stop searching if path is found
-                row.append(filename)
-            elif col == "assistant_name":
-                assistant_name = ""
-                if objects_endpoint.pipeline and objects_endpoint.pipeline.steps:
-                    for step in objects_endpoint.pipeline.steps:
-                        assistant_name = step.name
-                        break  # Stop searching if path is found
-                row.append(assistant_name)
-            else:
-                try:
-                    value = str(getattr(objects_endpoint, col))
-                    row.append(value)
-                except AttributeError:
-                    row.append("")
-        table.add_row(*row, style="yellow")
-
-    from rich.console import Console
-
-    console = Console()
-    console.print(table)
-    console.print(
-        f"Page [bold]{page_of_object_endpoints.number + 1}[/bold] of [bold]{page_of_object_endpoints.total_pages}[/bold] "
-        f"(total of {page_of_object_endpoints.total_elements} objects)"
-    )
 
 
 @cli.command()
