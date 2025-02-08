@@ -585,7 +585,9 @@ def get(
             print_object_table({"plural": object_type}, objects, query, page, pagesize, sort, truncate)
     except Exception as e:
         print(f"Error getting objects: {str(e)}")
-        sys.exit(1)
+        # Don't exit with error code for empty lists or missing content
+        if "content" not in str(e).lower() and "empty" not in str(e).lower():
+            sys.exit(1)
 
 
 def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, query: str, page: int, pagesize: int, sort: Optional[str], truncate: bool) -> None:
