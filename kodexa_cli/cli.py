@@ -661,8 +661,11 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
                 f"(total of {page_of_object_endpoints.total_elements} objects)"
             )
     except Exception as e:
-        print("e:", e)
-        raise e
+        # Just print the table with no data for any errors
+        from rich.console import Console
+        console = Console()
+        console.print(table)
+        print(f"Note: {str(e)}")
 
 
 @cli.command()
