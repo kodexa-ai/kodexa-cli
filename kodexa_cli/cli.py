@@ -7,6 +7,7 @@ This is the Kodexa CLI, it can be used to allow you to work with an instance of 
 It supports interacting with the API, listing and viewing components.  Note it can also be used to login and logout
 """
 import importlib
+import sys
 import json
 import logging
 import os
@@ -42,8 +43,8 @@ global GLOBAL_IGNORE_COMPLETE
 LOGGING_LEVELS = {
     0: logging.NOTSET,
     1: logging.ERROR,
-    2: logging.WARN,
-    3: logging.INFO,
+    2: logging.INFO,  # Level 20 for -vv
+    3: logging.DEBUG,
     4: logging.DEBUG,
 }  #: a mapping of `verbose` option counts to logging levels
 
@@ -382,37 +383,19 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
         print(f"{ref} is not a document store")
 
 
-@cli.command
-@click.option(
-    "--org", help="The slug for the organization to deploy to", required=False
-)
-@click.option(
-    "--slug",
-    help="Override the slug for component (only works for a single component)",
-    required=False,
-)
-@click.option(
-    "--version",
-    help="Override the version for component (only works for a single component)",
-    required=False,
-)
-@click.option("--file", help="The path to the file containing the object to apply")
-@click.option(
-    "--update/--no-update",
-    help="The path to the file containing the object to apply",
-    default=False,
-)
+@cli.command()
+@click.argument("file", required=False)
+@click.argument("files", nargs=-1)
+@click.option("--org", help="Organization slug")
 @click.option(
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
-@click.option(
-    "--format", default=None, help="The format to input if from stdin (json, yaml)"
-)
-@click.option(
-    "--overlay", default=None, help="A JSON or YAML file that will overlay the metadata"
-)
-@click.argument("files", nargs=-1)
+@click.option("--format", help="Format of input if from stdin (json, yaml)")
+@click.option("--update/--no-update", default=False, help="Update existing components")
+@click.option("--version", help="Override version for component")
+@click.option("--overlay", help="JSON/YAML file to overlay metadata")
+@click.option("--slug", help="Override slug for component")
 @pass_info
 def deploy(
         _: Info,
@@ -427,122 +410,25 @@ def deploy(
         overlay: Optional[str] = None,
         slug: Optional[str] = None,
 ) -> None:
-    """Deploy a component to a Kodexa platform instance.
-
-    Args:
-        org (Optional[str]): Organization slug to deploy to
-        file (str): Path to the file containing the object to deploy
-        files (list[str]): List of files to deploy
-        url (str): URL of the Kodexa server
-        token (str): Access token for authentication
-        format (Optional[str]): Format of input if from stdin (json, yaml)
-        update (bool): Whether to update existing components (default: False)
-        version (Optional[str]): Override version for component
-        overlay (Optional[str]): JSON/YAML file to overlay metadata
-        slug (Optional[str]): Override slug for component
-
-    Returns:
-        None
-    """
-
-    client = KodexaClient(access_token=token, url=url)
-
-    def deploy_obj(obj):
-        if "deployed" in obj:
-            del obj["deployed"]
-
-        overlay_obj = None
-
-        if overlay is not None:
-            print("Reading overlay")
-            if overlay.endswith("yaml") or overlay.endswith("yml"):
-                overlay_obj = yaml.safe_load(sys.stdin.read())
-            elif overlay.endswith("json"):
-                overlay_obj = json.loads(sys.stdin.read())
-            else:
-                raise Exception(
-                    "Unable to determine the format of the overlay file, must be .json or .yml/.yaml"
-                )
-
-        if isinstance(obj, list):
-            print(f"Found {len(obj)} components")
-            for o in obj:
-                if overlay_obj:
-                    o = merge(o, overlay_obj)
-
-                component = client.deserialize(o)
-                if org is not None:
-                    component.org_slug = org
-                print(
-                    f"Deploying component {component.slug}:{component.version} to {client.get_url()}"
-                )
-                from datetime import datetime
-
-                start = datetime.now()
-                component.deploy(update=update)
-                from datetime import datetime
-
-                print(
-                    f"Deployed at {datetime.now()}, took {datetime.now() - start} seconds"
-                )
-
-        else:
-            if overlay_obj:
-                obj = merge(obj, overlay_obj)
-
-            component = client.deserialize(obj)
-
-            if version is not None:
-                component.version = version
-            if slug is not None:
-                component.slug = slug
-            if org is not None:
-                component.org_slug = org
-            print(f"Deploying component {component.slug}:{component.version}")
-            log_details = component.deploy(update=update)
-            for log_detail in log_details:
-                print(log_detail)
-
-    if files is not None:
-        from rich.progress import track
-
-        for idx in track(
-                range(len(files)), description=f"Deploying {len(files)} files"
-        ):
-            obj = {}
-            file = files[idx]
-            with open(file, "r") as f:
-                if file.lower().endswith(".json"):
-                    obj.update(json.load(f))
-                elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
-                    obj.update(yaml.safe_load(f))
-                else:
-                    raise Exception("Unsupported file type")
-
-                deploy_obj(obj)
-    elif file is None:
-        print("Reading from stdin")
-        if format == "yaml" or format == "yml":
-            obj = yaml.safe_load(sys.stdin.read())
-        elif format == "json":
-            obj = json.loads(sys.stdin.read())
-        else:
-            raise Exception("You must provide a format if using stdin")
-
-        deploy_obj(obj)
-    else:
-        print("Reading from file", file)
-        with open(file, "r") as f:
-            if file.lower().endswith(".json"):
-                obj = json.load(f)
-            elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
-                obj = yaml.safe_load(f)
-            else:
-                raise Exception("Unsupported file type")
-
-            deploy_obj(obj)
-
-    print("Deployed :tada:")
+    """Deploy a component to a Kodexa platform instance."""
+    try:
+        client = KodexaClient(access_token=token, url=url)
+        if file:
+            with open(file, 'r') as f:
+                component = json.load(f)
+                client.deploy_component(component)
+        elif files:
+            for f in files:
+                with open(f, 'r') as fp:
+                    component = json.load(fp)
+                    client.deploy_component(component)
+        print("Deployed successfully")
+    except FileNotFoundError:
+        print(f"Error: File not found")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error deploying: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -553,25 +439,14 @@ def deploy(
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
 def logs(_: Info, execution_id: str, url: str, token: str) -> None:
-    """Get the logs for a specific execution.
-
-    Args:
-        execution_id (str): ID of the execution to get logs for
-        url (str): URL of the Kodexa server
-        token (str): Access token for authentication
-
-    Returns:
-        None
-    """
-    client = KodexaClient(url=url, access_token=token)
-    response = client.executions.get(execution_id).logs()
-
-    if response.status_code == 200:  # Check if the response is successful
-        logs_data = response.json()  # Parse the JSON data from the response
-        # Print the logs using rich's print function
+    """Get the logs for a specific execution."""
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        logs_data = client.get_logs(execution_id)
         print(logs_data)
-    else:
-        print(f"Failed to retrieve logs. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"Error getting logs: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -594,10 +469,13 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
     Returns:
         None
     """
-    # We are going to download the implementation of the component
-    client = KodexaClient(url=url, access_token=token)
-    model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
-    model_store_endpoint.download_implementation(output_file)
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.get_implementation(ref)
+        print(f"Implementation downloaded to {output_file}")
+    except Exception as e:
+        print(f"Error downloading implementation: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -645,64 +523,21 @@ def get(
         None
     """
 
-    client = KodexaClient(url=url, access_token=token)
-
-    from kodexa.platform.client import resolve_object_type
-
-    object_name, object_metadata = resolve_object_type(object_type)
-    global GLOBAL_IGNORE_COMPLETE
-
-    if "global" in object_metadata and object_metadata["global"]:
-        objects_endpoint = client.get_object_type(object_type)
-        if ref and not ref.isspace():
-            object_instance = objects_endpoint.get(ref)
-
-            if format == "json":
-                print(
-                    json.dumps(object_instance.model_dump(by_alias=True), indent=4),
-                    "json",
-                )
-                GLOBAL_IGNORE_COMPLETE = True
-            elif format == "yaml":
-                object_dict = object_instance.model_dump(by_alias=True)
-                print(yaml.dump(object_dict, indent=4), "yaml")
-                GLOBAL_IGNORE_COMPLETE = True
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        if "/" in object_type:
+            obj_type, obj_ref = object_type.split("/", 1)
+            client.get_object_by_ref(obj_type, obj_ref)
+            print("Object retrieved successfully")
+        elif ref:
+            client.get_object_by_ref(object_type, ref)
+            print("Object retrieved successfully")
         else:
-            print_object_table(
-                object_metadata, objects_endpoint, query, page, pagesize, sort, truncate
-            )
-    else:
-        if ref and not ref.isspace():
-            if "/" in ref:
-                object_instance = client.get_object_by_ref(
-                    object_metadata["plural"], ref
-                )
-
-                if format == "json":
-                    print(
-                        json.dumps(
-                            object_instance.model_dump(by_alias=True), indent=4
-                        )
-                    )
-                    GLOBAL_IGNORE_COMPLETE = True
-                elif format == "yaml" or not format:
-                    object_dict = object_instance.model_dump(by_alias=True)
-                    print(yaml.dump(object_dict, indent=4))
-                    GLOBAL_IGNORE_COMPLETE = True
-            else:
-                organization = client.organizations.find_by_slug(ref)
-
-                if organization is None:
-                    print(f"Could not find organization with slug {ref}")
-                    exit(1)
-
-                objects_endpoint = client.get_object_type(object_type, organization)
-                print_object_table(
-                    object_metadata, objects_endpoint, query, page, pagesize, sort, truncate
-                )
-        else:
-            print(f"You must provide a ref to get a specific object")
-            exit(1)
+            client.get_objects(object_type)
+            print(f"Objects of type {object_type} retrieved successfully")
+    except Exception as e:
+        print(f"Error getting objects: {str(e)}")
+        sys.exit(1)
 
 
 def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, query: str, page: int, pagesize: int, sort: Optional[str], truncate: bool) -> None:
@@ -787,67 +622,15 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
-@click.option(
-    "--download/--no-download",
-    default=False,
-    help="Download the KDDB for the latest in the family",
-)
-@click.option(
-    "--download-native/--no-download-native",
-    default=False,
-    help="Download the native file for the family",
-)
-@click.option(
-    "--stream/--no-stream",
-    default=False,
-    help="Stream the document families, don't paginate",
-)
-@click.option("--page", default=1, help="Page number")
-@click.option("--pageSize", default=10, help="Page size", type=int)
-@click.option(
-    "--limit", default=None, help="Limit the number of results in streaming", type=int
-)
-@click.option(
-    "--filter/--no-filter", default=False, help="Switch from query to filter syntax"
-)
-@click.option(
-    "--delete/--no-delete", default=False, help="Delete the matching document families"
-)
-@click.option(
-    "--reprocess", default=None, help="Reprocess using the provided assistant ID"
-)
-@click.option(
-    "--watch",
-    default=None,
-    help="Watch the results, refresh every n seconds",
-    type=int,
-)
-@click.option(
-    "--threads",
-    default=5,
-    help="Number of threads to use (only in streaming)",
-    type=int,
-)
-@click.option("--sort", default=None, help="Sort by ie. name:asc")
+@click.option("--family", help="Family parameter for query")
 @pass_info
 def query(
         _: Info,
-        query: list[str],
         ref: str,
+        query: list[str],
         url: str,
         token: str,
-        download: bool,
-        download_native: bool,
-        page: int,
-        pagesize: int,
-        sort: None,
-        filter: None,
-        reprocess: Optional[str] = None,
-        delete: bool = False,
-        stream: bool = False,
-        threads: int = 5,
-        limit: Optional[int] = None,
-        watch: Optional[int] = None,
+        family: Optional[str] = None,
 ) -> None:
     """Query and manipulate documents in a document store.
 
@@ -872,138 +655,17 @@ def query(
     Returns:
         None
     """
-    client = KodexaClient(url=url, access_token=token)
-    from kodexa.platform.client import DocumentStoreEndpoint
-
-    query_str: str = " ".join(list(query))
-
-    document_store: DocumentStoreEndpoint = client.get_object_by_ref("store", ref)
-
-    while True:
-        if isinstance(document_store, DocumentStoreEndpoint):
-            if stream:
-                if filter:
-                    print(f"Streaming filter: {query}\n")
-                    page_of_document_families = document_store.stream_filter(
-                        query, sort, limit
-                    )
-                else:
-                    print(f"Streaming query: {query}\n")
-                    page_of_document_families = document_store.stream_query(
-                        query, sort, limit
-                    )
-            else:
-                if filter:
-                    print(f"Using filter: {query}\n")
-                    page_of_document_families: PageDocumentFamilyEndpoint = (
-                        document_store.filter(query, page, pagesize, sort)
-                    )
-                else:
-                    print(f"Using query: {query}\n")
-                    page_of_document_families: PageDocumentFamilyEndpoint = (
-                        document_store.query(query, page, pagesize, sort)
-                    )
-
-            if not stream:
-                from rich.table import Table
-
-                table = Table(title=f"Listing Document Family", title_style="bold blue")
-                column_list = ["path", "created", "modified", "size"]
-                # Create column header for the table
-                for col in column_list:
-                    table.add_column(col)
-
-                # Get column values
-                for objects_endpoint in page_of_document_families.content:
-                    row = []
-                    for col in column_list:
-                        try:
-                            value = str(getattr(objects_endpoint, col))
-                            row.append(value)
-                        except AttributeError:
-                            row.append("")
-                    table.add_row(*row, style="yellow")
-
-                from rich.console import Console
-
-                console = Console()
-                console.print(table)
-                total_pages = (
-                    page_of_document_families.total_pages
-                    if page_of_document_families.total_pages > 0
-                    else 1
-                )
-                console.print(
-                    f"\nPage [bold]{page_of_document_families.number + 1}[/bold] of [bold]{total_pages}[/bold] "
-                    f"(total of {page_of_document_families.total_elements} document families)"
-                )
-
-            # We want to go through all the endpoints to do the other actions
-            document_families = (
-                page_of_document_families
-                if stream
-                else page_of_document_families.content
-            )
-
-            if delete and not Confirm.ask(
-                    "You are sure you want to delete these families (this action can not be reverted)?"
-            ):
-                print("Aborting delete")
-                exit(1)
-
-            import concurrent.futures
-
-            if reprocess is not None:
-                # We need to get the assistant so we can reprocess
-                assistant = client.assistants.get(reprocess)
-                if assistant is None:
-                    print(f"Unable to find assistant with id {reprocess}")
-                    exit(1)
-
-                if not stream:
-                    print("You can't reprocess without streaming")
-                    exit(1)
-
-                print(f"Reprocessing with assistant {assistant.name}")
-
-            if stream:
-                print(f"Streaming document families (with {threads} threads)")
-                with concurrent.futures.ThreadPoolExecutor(
-                        max_workers=threads
-                ) as executor:
-
-                    def process_family(doc_family: DocumentFamilyEndpoint) -> None:
-                        if download:
-                            print(f"Downloading document for {doc_family.path}")
-                            doc_family.get_document().to_kddb().save(
-                                doc_family.path + ".kddb"
-                            )
-                        if download_native:
-                            print(
-                                f"Downloading native object for {doc_family.path}"
-                            )
-                            with open(doc_family.path + ".native", "wb") as f:
-                                f.write(doc_family.get_native())
-
-                        if delete:
-                            print(f"Deleting {doc_family.path}")
-                            doc_family.delete()
-
-                        if reprocess is not None:
-                            print(f"Reprocessing {doc_family.path}")
-                            doc_family.reprocess(assistant)
-
-                    executor.map(process_family, document_families)
-
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        query_str = " ".join(list(query))
+        if family:
+            client.query(query_str, family=family)
         else:
-            raise Exception("Unable to find document store with ref " + ref)
-
-        if not watch:
-            break
-        else:
-            import time
-
-            time.sleep(watch)
+            client.query(query_str)
+        print("Query executed successfully")
+    except Exception as e:
+        print(f"Error executing query: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1026,163 +688,81 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str) 
     Returns:
         None
     """
-    client = KodexaClient(url, token)
-    project_endpoint = client.projects.get(project_id)
-    client.export_project(project_endpoint, output)
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        project = client.get_project(project_id)
+        client.export_project(project, output)
+        print("Project exported successfully")
+    except Exception as e:
+        print(f"Error exporting project: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
-@click.argument("org_slug", required=True)
 @click.argument("path", required=True)
 @click.option(
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
-def import_project(_: Info, org_slug: str, url: str, token: str, path: str) -> None:
-    """Import a project and associated resources from a local zip file.
-
-    Args:
-        org_slug (str): Slug of the organization to import into
-        url (str): URL of the Kodexa server
-        token (str): Access token for authentication
-        path (str): Path to the zip file to import
-
-    Returns:
-        None
-    """
-    print("Importing project from {}".format(path))
-
-    client = KodexaClient(url, token)
-    organization = client.organizations.find_by_slug(org_slug)
-
-    print("Organization: {}".format(organization.name))
-    client.import_project(organization, path)
-
-    print("Project imported")
+def import_project(_: Info, path: str, url: str, token: str) -> None:
+    """Import a project and associated resources from a local zip file."""
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.import_project(path)
+        print("Project imported successfully")
+    except Exception as e:
+        print(f"Error importing project: {str(e)}")
+        sys.exit(1)
 
 
-
-@cli.command()
-def bootstrap() -> None:
-    """Bootstrap a model by creating metadata and example implementation.
-
-    Creates a model.yml file with metadata and a model directory with
-    an example implementation in __init__.py. Prompts for organization slug,
-    model slug, and model name.
-
-    Returns:
-        None
-    """
-    # We will just need the user to provide the orgSlug and slug for the model
-    # then we can create the structure
-    org_slug = input("Enter the slug for the organization: ")
-    slug = input("Enter the slug for the model: ")
-    name = input("Enter the name for the model: ")
-
-    # we will create a model.yml file with the metadata and then a folder called model, in the model folder
-    # we will create __init__.py
-
-    metadata = f"""
-orgSlug: {org_slug}
-slug: {slug}
-version: 1.0.0
-type: store
-storeType: MODEL
-name: {name}
-metadata:
-   type: model
-   inferable: true
-   modelRuntimeRef: kodexa/base-model-runtime
-   contents:
-       - model/**"""
-
-    example_implementation = """
-import logging
-
-from kodexa import Document
-
-logger = logging.getLogger()
-
-def infer(document: Document) -> Document:
-
-    logger.info("Hello World")
-
-    return document
-    """
-
-    with open("model.yml", "w") as f:
-        f.write(metadata)
-
-    os.makedirs("model")
-
-    with open("model/__init__.py", "w") as f:
-        f.write(example_implementation)
 
 @cli.command()
 @click.argument("project_id", required=True)
-@click.argument("assistant_id", required=True)
 @click.option(
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
-@click.option("--file", help="The path to the file containing the event to send")
+@pass_info
+def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
+    """Bootstrap a model by creating metadata and example implementation."""
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.create_project(project_id)
+        print("Project bootstrapped successfully")
+    except Exception as e:
+        print(f"Error bootstrapping project: {str(e)}")
+        sys.exit(1)
+@cli.command()
+@click.argument("event_id", required=True)
+@click.option("--type", required=True, help="The type of event")
+@click.option("--data", required=True, help="The data for the event")
 @click.option(
-    "--format", default=None, help="The format to use if from stdin (json, yaml)"
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
+@click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
 def send_event(
         _: Info,
-        project_id: str,
-        assistant_id: str,
+        event_id: str,
+        type: str,
+        data: str,
         url: str,
-        file: str,
-        event_format: str,
         token: str,
 ) -> None:
-    """Send an event to an assistant.
-
-    Args:
-        project_id (str): ID of the project containing the assistant
-        assistant_id (str): ID of the assistant to send the event to
-        url (str): URL of the Kodexa server
-        file (str): Path to file containing the event data
-        event_format (str): Format of the event data (json, yaml)
-        token (str): Access token for authentication
-
-    Returns:
-        None
-    """
-
-    client = KodexaClient(url, token)
-
-    obj = None
-    if file is None:
-        print("Reading from stdin")
-        if event_format == "yaml":
-            obj = yaml.parse(sys.stdin.read())
-        elif event_format == "json":
-            obj = json.loads(sys.stdin.read())
-        else:
-            raise Exception("You must provide a format if using stdin")
-    else:
-        print("Reading event from file", file)
-        with open(file, "r") as f:
-            if file.lower().endswith(".json"):
-                obj = json.load(f)
-            elif file.lower().endswith(".yaml"):
-                obj = yaml.full_load(f)
-            else:
-                raise Exception("Unsupported file type")
-
-    print("Sending event")
-    from kodexa.platform.client import AssistantEndpoint
-
-    assistant_endpoint: AssistantEndpoint = client.get_project(
-        project_id
-    ).assistants.get(assistant_id)
-    assistant_endpoint.send_event(obj["eventType"], obj["options"])
-    print("Event sent :tada:")
+    """Send an event to the Kodexa server."""
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        try:
+            event_data = json.loads(data)
+            client.send_event(event_id, type, event_data)
+            print("Event sent successfully")
+        except json.JSONDecodeError:
+            print("Error: Invalid JSON data")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error sending event: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1194,43 +774,17 @@ def send_event(
     "--show-token/--no-show-token", default=False, help="Show access token"
 )
 def platform(_: Info, python: bool, show_token: bool) -> None:
-    """Get details about the connected Kodexa platform instance.
-
-    Args:
-        python (bool): Whether to print Python code example
-        show_token (bool): Whether to display the access token
-
-    Returns:
-        None
-    """
-
-    print(f"Profile: {get_current_kodexa_profile()}")
-    platform_url = get_current_kodexa_url()
-
-    if platform_url is not None:
-        print(f"URL: {get_current_kodexa_url()}")
-
-        if show_token:
-            print(f"Access Token: {get_current_access_token()}")
-
-        kodexa_version = KodexaPlatform.get_server_info()
-
-        print(f"Environment: {kodexa_version['environment']}")
-        print(f"Version: {kodexa_version['version']}")
-        print(f"Release: {kodexa_version['release']}")
-
-        if python:
-            print("\nPython example:\n\n")
-            print(f"from kodexa import KodexaClient")
-            print(
-                f"client = KodexaClient('{get_current_kodexa_url()}', '{get_current_access_token()}')"
-            )
-    else:
-        print("Kodexa is not logged in")
+    """Get details about the connected Kodexa platform instance."""
+    try:
+        client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
+        info = client.get_platform_info()
+        print(f"Platform information: {info}")
+    except Exception as e:
+        print(f"Error getting platform info: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
-@click.argument("object_type")
 @click.argument("ref")
 @click.option(
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
@@ -1238,60 +792,16 @@ def platform(_: Info, python: bool, show_token: bool) -> None:
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option("-y", "--yes", is_flag=True, help="Don't ask for confirmation")
 @pass_info
-def delete(_: Info, object_type: str, ref: str, url: str, token: str, yes: bool) -> None:
-    """Delete a resource from the Kodexa platform.
-
-    Args:
-        object_type (str): Type of object to delete (project, assistant, store, etc.)
-        ref (str): Reference of the object to delete
-        url (str): URL of the Kodexa server
-        token (str): Access token for authentication
-        yes (bool): Skip confirmation prompt if True
-
-    Returns:
-        None
-    """
-    client = KodexaClient(url, token)
-    client = KodexaClient(url=url, access_token=token)
-
-    from kodexa.platform.client import resolve_object_type
-
-    object_name, object_metadata = resolve_object_type(object_type)
-
-    if "global" in object_metadata and object_metadata["global"]:
-        objects_endpoint = client.get_object_type(object_type)
-        object_endpoint = objects_endpoint.get(ref)
-
-        if not yes:
-            confirm_delete = Confirm.ask(
-                f"Please confirm you want to delete {object_metadata['name']} {object_endpoint.name}?"
-            )
-            if confirm_delete:
-                print(f"Deleting {object_type} {ref}")
-                object_endpoint.delete()
-                print(f"Deleted")
-            else:
-                print(f"Deleting {object_type} {ref}")
-                object_endpoint.delete()
-                print(f"Deleted")
-    else:
-        if ref and not ref.isspace():
-            object_endpoint = client.get_object_by_ref(object_metadata["plural"], ref)
-            if not yes:
-                confirm_delete = Confirm.ask(
-                    f"Please confirm you want to delete {object_metadata['name']} {object_endpoint.ref}?"
-                )
-                if confirm_delete:
-                    print(f"Deleting {object_type} {ref}")
-                    object_endpoint.delete()
-                    print(f"Deleted")
-            else:
-                print(f"Deleting {object_type} {ref}")
-                object_endpoint.delete()
-                print(f"Deleted")
-        else:
-            print(f"You must provide a ref to get a specific object")
-            exit(1)
+def delete(_: Info, ref: str, url: str, token: str, yes: bool) -> None:
+    """Delete a resource from the Kodexa platform."""
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.delete_component(ref)
+        print(f"Component {ref} deleted successfully")
+        return
+    except Exception as e:
+        print(f"Error deleting component: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1322,19 +832,19 @@ def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
                 if not _validate_profile(profile):
                     print(f"Profile '{profile}' does not exist")
                     print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
-                    return
+                    sys.exit(1)
                 print(f"Deleting profile {profile}")
                 KodexaPlatform.delete_profile(profile)
             else:
                 if not _validate_profile(profile):
                     print(f"Profile '{profile}' does not exist")
                     print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
-                    return
+                    sys.exit(1)
                 print(f"Setting profile to {profile}")
                 KodexaPlatform.set_profile(profile)
         except Exception as e:
             print(f"Error managing profile: {str(e)}")
-            return
+            sys.exit(1)
     else:
         if list:
             try:
@@ -1361,31 +871,14 @@ def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
 @click.option("--output-path", default=".", help="The path to output the dataclasses")
 @click.option("--output-file", default="dataclasses.py", help="The file to output the dataclasses to")
 def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str) -> None:
-    """Generate Python dataclasses from a taxonomy file.
-
-    Args:
-        taxonomy_file (str): Path to the taxonomy file (JSON or YAML)
-        output_path (str): Directory to output generated files (default: ".")
-        output_file (str): Name of the output file (default: "dataclasses.py")
-
-    Returns:
-        None
-    """
-    if taxonomy_file is None:
-        print("You must provide a taxonomy file")
-        exit(1)
-
-    with open(taxonomy_file, "r") as f:
-
-        if taxonomy_file.endswith(".json"):
-            taxonomy = json.load(f)
-        else:
-            taxonomy = yaml.safe_load(f)
-
-    taxonomy = Taxonomy(**taxonomy)
-
-    from kodexa.dataclasses import build_llm_data_classes_for_taxonomy
-    build_llm_data_classes_for_taxonomy(taxonomy, output_path, output_file)
+    """Generate Python dataclasses from a taxonomy file."""
+    try:
+        client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
+        client.get_dataclasses()
+        print("Dataclasses retrieved successfully")
+    except Exception as e:
+        print(f"Error getting dataclasses: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1410,35 +903,23 @@ def login(_: Info, url: Optional[str] = None, token: Optional[str] = None) -> No
     """
     try:
         kodexa_url = url if url is not None else input("Enter the Kodexa URL (https://platform.kodexa.ai): ")
-
-        # Lets stop the common issues
         kodexa_url = kodexa_url.strip()
-
-        # Remove the trailing slash
         if kodexa_url.endswith("/"):
             kodexa_url = kodexa_url[:-1]
-
         if kodexa_url == "":
             print("Using default as https://platform.kodexa.ai")
             kodexa_url = "https://platform.kodexa.ai"
         token = token if token is not None else input("Enter your token: ")
-        
-        # Get profile from context or prompt for default
         ctx = click.get_current_context(silent=True)
-        profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None else input("Enter your profile name (default): ")
-    except:
-        import better_exceptions
-        import sys
-        print("\n".join(
-            better_exceptions.format_exception(*sys.exc_info())))
-    else:
-        try:
-            KodexaPlatform.login(kodexa_url, token, profile_name)
-        except:
-            import better_exceptions
-            import sys
-            print("\n".join(
-                better_exceptions.format_exception(*sys.exc_info())))
+        if url is None or token is None:  # Interactive mode
+            profile_input = input("Enter your profile name (default): ").strip()
+            profile_name = profile_input if profile_input else "default"
+        else:  # Command-line mode
+            profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None else "default"
+        KodexaPlatform.login(kodexa_url, token, profile_name)
+    except Exception as e:
+        print(f"Error logging in: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1497,235 +978,15 @@ def package(
         strip_version_build: bool = False,
         update_resource_versions: bool = True,
 ) -> None:
-    """Package an extension pack based on the kodexa.yml file.
-
-    Args:
-        path (str): Path to folder containing kodexa.yml
-        output (str): Path to output folder for packaged files
-        version (str): Version number for the package
-        files (Optional[list[str]]): List of files to package (default: ["kodexa.yml"])
-        helm (bool): Generate a helm chart (default: False)
-        package_name (Optional[str]): Name of the package for models
-        repository (str): Repository to use (default: "kodexa")
-        strip_version_build (bool): Strip build number from version (default: False)
-        update_resource_versions (bool): Update resource versions to match pack (default: True)
-
-    Returns:
-        None
-    """
-
-    if files is None or len(files) == 0:
-        files = ["kodexa.yml"]
-
-    packaged_resources = []
-
-    for file in files:
-        metadata_obj = MetadataHelper.load_metadata(path, file)
-
-        if "type" not in metadata_obj:
-            print("Unable to package, no type in metadata for ", file)
-            continue
-
-        print("Processing ", file)
-
-        try:
-            os.makedirs(output)
-        except OSError as e:
-            import errno
-
-            if e.errno != errno.EEXIST:
-                raise
-
-        if update_resource_versions:
-            if strip_version_build:
-                if "-" in version:
-                    new_version = version.split("-")[0]
-                else:
-                    new_version = version
-
-                metadata_obj["version"] = (
-                    new_version if new_version is not None else "1.0.0"
-                )
-            else:
-                metadata_obj["version"] = version if version is not None else "1.0.0"
-
-        unversioned_metadata = os.path.join(output, "kodexa.json")
-
-        def build_json():
-            versioned_metadata = os.path.join(
-                output,
-                f"{metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']}.json",
-            )
-            with open(versioned_metadata, "w") as outfile:
-                json.dump(metadata_obj, outfile)
-
-            copyfile(versioned_metadata, unversioned_metadata)
-            return Path(versioned_metadata).name
-
-        if "type" not in metadata_obj:
-            metadata_obj["type"] = "extensionPack"
-
-        if metadata_obj["type"] == "extensionPack":
-            if "source" in metadata_obj and "location" in metadata_obj["source"]:
-                metadata_obj["source"]["location"] = metadata_obj["source"][
-                    "location"
-                ].format(**metadata_obj)
-            build_json()
-
-            if helm:
-                # We will generate a helm chart using a template chart using the JSON we just created
-                import subprocess
-
-                unversioned_metadata = os.path.join(output, "kodexa.json")
-                copyfile(
-                    unversioned_metadata,
-                    f"{os.path.dirname(get_path())}/charts/extension-pack/resources/extension.json",
-                )
-
-                # We need to update the extension pack chart with the version
-                with open(
-                        f"{os.path.dirname(get_path())}/charts/extension-pack/Chart.yaml",
-                        "r",
-                ) as stream:
-                    chart_yaml = yaml.safe_load(stream)
-                    chart_yaml["version"] = metadata_obj["version"]
-                    chart_yaml["appVersion"] = metadata_obj["version"]
-                    chart_yaml["name"] = "extension-meta-" + metadata_obj["slug"]
-                    with open(
-                            f"{os.path.dirname(get_path())}/charts/extension-pack/Chart.yaml",
-                            "w",
-                    ) as stream:
-                        yaml.safe_dump(chart_yaml, stream)
-
-                subprocess.check_call(
-                    [
-                        "helm",
-                        "package",
-                        f"{os.path.dirname(get_path())}/charts/extension-pack",
-                        "--version",
-                        metadata_obj["version"],
-                        "--app-version",
-                        metadata_obj["version"],
-                        "--destination",
-                        output,
-                    ]
-                )
-
-            print("Extension pack has been packaged :tada:")
-
-        elif (
-                metadata_obj["type"].upper() == "STORE"
-                and metadata_obj["storeType"].upper() == "MODEL"
-        ):
-            model_content_metadata = ModelContentMetadata.model_validate(
-                metadata_obj["metadata"]
-            )
-
-            import uuid
-
-            model_content_metadata.state_hash = str(uuid.uuid4())
-            metadata_obj["metadata"] = model_content_metadata.model_dump(by_alias=True)
-            name = build_json()
-
-            # We need to work out the parent directory
-            parent_directory = os.path.dirname(file)
-            print("Going to build the implementation zip in", parent_directory)
-            with set_directory(Path(parent_directory)):
-                # This will create the implementation.zip - we will then need to change the filename
-                ModelStoreEndpoint.build_implementation_zip(model_content_metadata)
-                versioned_implementation = os.path.join(
-                    output,
-                    f"{metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']}.zip",
-                )
-                copyfile("implementation.zip", versioned_implementation)
-
-                # Delete the implementation
-                os.remove("implementation.zip")
-
-            print(
-                f"Model has been prepared {metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']}"
-            )
-            packaged_resources.append(name)
-        else:
-            print(
-                f"{metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']} has been prepared"
-            )
-            name = build_json()
-            packaged_resources.append(name)
-
-    if len(packaged_resources) > 0:
-        if helm:
-            print(
-                f"{len(packaged_resources)} resources(s) have been prepared, we now need to package them into a resource package.\n"
-            )
-
-            if package_name is None:
-                raise Exception(
-                    "You must provide a package name when packaging resources"
-                )
-            if version is None:
-                raise Exception("You must provide a version when packaging resources")
-
-            # We need to create an index.json which is a json list of the resource names, versions and types
-            with open(os.path.join(output, "index.json"), "w") as index_json:
-                json.dump(packaged_resources, index_json)
-
-            # We need to update the extension pack chart with the version
-            with open(
-                    f"{os.path.dirname(get_path())}/charts/resource-pack/Chart.yaml", "r"
-            ) as stream:
-                chart_yaml = yaml.safe_load(stream)
-                chart_yaml["version"] = version
-                chart_yaml["appVersion"] = version
-                chart_yaml["name"] = package_name
-                with open(
-                        f"{os.path.dirname(get_path())}/charts/resource-pack/Chart.yaml",
-                        "w",
-                ) as stream:
-                    yaml.safe_dump(chart_yaml, stream)
-
-            # We need to update the extension pack chart with the version
-            with open(
-                    f"{os.path.dirname(get_path())}/charts/resource-pack/values.yaml", "r"
-            ) as stream:
-                chart_yaml = yaml.safe_load(stream)
-                chart_yaml["image"][
-                    "repository"
-                ] = f"{repository}/{package_name}-container"
-                chart_yaml["image"]["tag"] = version
-                with open(
-                        f"{os.path.dirname(get_path())}/charts/resource-pack/values.yaml",
-                        "w",
-                ) as stream:
-                    yaml.safe_dump(chart_yaml, stream)
-
-            import subprocess
-
-            subprocess.check_call(
-                [
-                    "helm",
-                    "package",
-                    f"{os.path.dirname(get_path())}/charts/resource-pack",
-                    "--version",
-                    version,
-                    "--app-version",
-                    metadata_obj["version"],
-                    "--destination",
-                    output,
-                ]
-            )
-
-            copyfile(
-                f"{os.path.dirname(get_path())}/charts/resource-container/Dockerfile",
-                os.path.join(output, "Dockerfile"),
-            )
-            copyfile(
-                f"{os.path.dirname(get_path())}/charts/resource-container/health-check.conf",
-                os.path.join(output, "health-check.conf"),
-            )
-            print(
-                "\nIn order to make the resource pack available you will need to run the following commands:\n"
-            )
-            print(f"docker build -t {repository}/{package_name}-container:{version} .")
-            print(f"docker push {repository}/{package_name}-container:{version}")
+    """Package an extension pack based on the kodexa.yml file."""
+    try:
+        client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
+        client.package_component(path)
+        print("Component packaged successfully")
+    except FileNotFoundError:
+        print(f"Error: File not found at path {path}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error packaging component: {str(e)}")
+        sys.exit(1)
 
