@@ -624,9 +624,16 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
         page_of_object_endpoints = objects_endpoint.list(
             query=query, page=page, page_size=pagesize, sort=sort
         )
+        # Handle empty list case
+        if not hasattr(page_of_object_endpoints, 'content'):
+            from rich.console import Console
+            console = Console()
+            console.print(table)
+            console.print("No objects found")
+            return
+
         # Get column values
-        if hasattr(page_of_object_endpoints, 'content'):
-            for objects_endpoint in page_of_object_endpoints.content:
+        for objects_endpoint in page_of_object_endpoints.content:
                 row = []
                 for col in column_list:
                     if col == "filename":
