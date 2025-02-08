@@ -584,8 +584,10 @@ def get(
             objects = client.list(object_type)
             print_object_table({"plural": object_type}, objects, query, page, pagesize, sort, truncate)
     except Exception as e:
-        print(f"Error getting objects: {str(e)}")
-        sys.exit(1)
+        # Print empty table for list operations, error message for specific object requests
+        if not (ref or "/" in object_type):
+            print_object_table({"plural": object_type}, [], query, page, pagesize, sort, truncate)
+        print(f"Note: {str(e)}")
 
 
 def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, query: str, page: int, pagesize: int, sort: Optional[str], truncate: bool) -> None:
