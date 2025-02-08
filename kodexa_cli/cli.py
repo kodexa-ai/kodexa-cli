@@ -934,6 +934,20 @@ def version(_: Info) -> None:
 
 
 @cli.command()
+@pass_info
+def profiles(_: Info) -> None:
+    """List all available profiles with their URLs."""
+    try:
+        profiles = KodexaPlatform.list_profiles()
+        for profile in profiles:
+            url = KodexaPlatform.get_url(profile)
+            print(f"{profile}: {url}")
+    except Exception as e:
+        print(f"Error listing profiles: {str(e)}")
+        sys.exit(1)
+
+
+@cli.command()
 @click.option(
     "--path",
     default=os.getcwd(),
