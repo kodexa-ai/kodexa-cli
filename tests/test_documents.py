@@ -35,7 +35,7 @@ def test_get_objects(cli_runner, mock_kodexa_client):
     """Test getting objects."""
     result = cli_runner.invoke(cli, ['get', 'stores'])
     assert result.exit_code == 0
-    mock_kodexa_client.get_objects.assert_called_once()
+    mock_kodexa_client.list.assert_called_once_with('stores')
 
 def test_get_object_by_ref(cli_runner, mock_kodexa_client):
     """Test getting object by reference."""
