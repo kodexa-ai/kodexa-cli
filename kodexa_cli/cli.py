@@ -581,16 +581,9 @@ def get(
             client.get_object_by_ref(object_type, ref)
             print("Object retrieved successfully")
         else:
-            organizations = client.organizations.list()
-            # We want to print a nice message to say that you need to provide the slug of
-            # an organization, lets list a few of the organizations names and slug from organizations.content to help
-            print("You need to provide the slug of the organization to list the resources.\n")
-            print("Available organizations:")
-
-            for org in organizations.content:
-                print(f"  {org.slug} - {org.name}")
-
-            sys.exit(1)
+            # List objects of the specified type
+            objects_endpoint = client.list(object_type)
+            print_object_table({"plural": object_type}, objects_endpoint, query, page, pagesize, sort, truncate)
     except Exception as e:
         print(f"Error getting objects: {str(e)}")
         # Don't exit with error code for empty lists or missing content
