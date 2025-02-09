@@ -494,7 +494,7 @@ def print_available_object_types():
         "assistants": "AI assistants",
         "executions": "Execution records",
         "memberships": "Organization memberships",
-        "stores": "Document stores",
+        "stores": "Stores",
         "organizations": "Organizations",
         "documentFamily": "Document family collections",
         "exception": "System exceptions",
@@ -573,17 +573,67 @@ def get(
 
     try:
         client = KodexaClient(url=url, access_token=token)
-        if "/" in object_type:
-            obj_type, obj_ref = object_type.split("/", 1)
-            client.get_object_by_ref(obj_type, obj_ref)
-            print("Object retrieved successfully")
-        elif ref:
-            client.get_object_by_ref(object_type, ref)
-            print("Object retrieved successfully")
+        from kodexa.platform.client import resolve_object_type
+        object_name, object_metadata = resolve_object_type(object_type)
+        global GLOBAL_IGNORE_COMPLETE
+
+        if "global" in object_metadata and object_metadata["global"]:
+            objects_endpoint = client.get_object_type(object_type)
+            if ref and not ref.isspace():
+                object_instance = objects_endpoint.get(ref)
+
+                if format == "json":
+                    print(json.dumps(object_instance.model_dump(by_alias=True), indent=4))
+                    GLOBAL_IGNORE_COMPLETE = True
+                elif format == "yaml":
+                    object_dict = object_instance.model_dump(by_alias=True)
+                    print(yaml.dump(object_dict, indent=4))
+                    GLOBAL_IGNORE_COMPLETE = True
+            else:
+                print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort, truncate)
         else:
-            # List objects of the specified type
-            objects_endpoint = client.list(object_type)
-            print_object_table({"plural": object_type}, objects_endpoint, query, page, pagesize, sort, truncate)
+            if ref and not ref.isspace():
+                if "/" in ref:
+                    object_instance = client.get_object_by_ref(object_metadata["plural"], ref)
+
+                    if format == "json":
+                        print(json.dumps(object_instance.model_dump(by_alias=True), indent=4))
+                        GLOBAL_IGNORE_COMPLETE = True
+                    elif format == "yaml" or not format:
+                        object_dict = object_instance.model_dump(by_alias=True)
+                        print(yaml.dump(object_dict, indent=4))
+                        GLOBAL_IGNORE_COMPLETE = True
+                else:
+                    organization = client.organizations.find_by_slug(ref)
+
+                    if organization is None:
+                        print(f"Could not find organization with slug {ref}")
+                        sys.exit(1)
+
+                    objects_endpoint = client.get_object_type(object_type, organization)
+                    print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort, truncate)
+            else:
+                organizations = client.organizations.list()
+                print("You need to provide the slug of the organization to list the resources.\n")
+
+                from rich.table import Table
+                from rich.console import Console
+
+                table = Table(title="Available Organizations")
+                table.add_column("Slug", style="cyan")
+                table.add_column("Name", style="green")
+
+                for org in organizations.content:
+                    table.add_row(org.slug, org.name)
+
+                console = Console()
+                console.print(table)
+
+                if organizations.total_elements > len(organizations.content):
+                    console.print(f"\nShowing {len(organizations.content)} of {organizations.total_elements} total organizations.")
+
+                sys.exit(1)
+
     except Exception as e:
         print(f"Error getting objects: {str(e)}")
         # Don't exit with error code for empty lists or missing content
