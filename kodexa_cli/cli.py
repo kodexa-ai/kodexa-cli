@@ -887,7 +887,7 @@ def platform(_: Info, python: bool, show_token: bool) -> None:
     """Get details about the connected Kodexa platform instance."""
     try:
         client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
-        info = client.get_platform_info()
+        info = client.get_platform()
         print(f"Platform information: {info}")
     except Exception as e:
         print(f"Error getting platform info: {str(e)}")
