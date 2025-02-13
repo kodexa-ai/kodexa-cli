@@ -551,13 +551,10 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
     Returns:
         None
     """
-    try:
-        client = KodexaClient(url=url, access_token=token)
-        client.get_implementation(ref)
-        print(f"Implementation downloaded to {output_file}")
-    except Exception as e:
-        print(f"Error downloading implementation: {str(e)}")
-        sys.exit(1)
+    # We are going to download the implementation of the component
+    client = KodexaClient(url=url, access_token=token)
+    model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
+    model_store_endpoint.download_implementation(output_file)
 
 
 def print_available_object_types():
