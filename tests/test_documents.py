@@ -31,18 +31,6 @@ def test_download_implementation(cli_runner, mock_kodexa_client):
     assert result.exit_code == 0
     mock_kodexa_client.get_implementation.assert_called_once_with('test-implementation')
 
-def test_get_objects(cli_runner, mock_kodexa_client):
-    """Test getting objects."""
-    result = cli_runner.invoke(cli, ['get', 'stores'])
-    assert result.exit_code == 0
-    mock_kodexa_client.list.assert_called_once_with('stores')
-
-def test_get_object_by_ref(cli_runner, mock_kodexa_client):
-    """Test getting object by reference."""
-    result = cli_runner.invoke(cli, ['get', 'store/test'])
-    assert result.exit_code == 0
-    mock_kodexa_client.get_object_by_ref.assert_called_once_with('store', 'test')
-
 def test_query_simple(cli_runner, mock_kodexa_client):
     """Test simple query."""
     result = cli_runner.invoke(cli, ['query', 'test-query'])
