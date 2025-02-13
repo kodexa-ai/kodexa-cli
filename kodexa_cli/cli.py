@@ -903,7 +903,7 @@ def query(
     client = KodexaClient(url=url, access_token=token)
     from kodexa.platform.client import DocumentStoreEndpoint
 
-    query_str: str = " ".join(list(query))
+    query_str: str = " ".join(list(query)) if query else "*" if not filter else ""
 
     document_store: DocumentStoreEndpoint = client.get_object_by_ref("store", ref)
 
@@ -911,25 +911,25 @@ def query(
         if isinstance(document_store, DocumentStoreEndpoint):
             if stream:
                 if filter:
-                    print(f"Streaming filter: {query}\n")
+                    print(f"Streaming filter: {query_str}\n")
                     page_of_document_families = document_store.stream_filter(
-                        query, sort, limit
+                        query_str, sort, limit
                     )
                 else:
-                    print(f"Streaming query: {query}\n")
+                    print(f"Streaming query: {query_str}\n")
                     page_of_document_families = document_store.stream_query(
-                        query, sort, limit
+                        query_str, sort, limit
                     )
             else:
                 if filter:
-                    print(f"Using filter: {query}\n")
+                    print(f"Using filter: {query_str}\n")
                     page_of_document_families: PageDocumentFamilyEndpoint = (
-                        document_store.filter(query, page, pagesize, sort)
+                        document_store.filter(query_str, page, pagesize, sort)
                     )
                 else:
-                    print(f"Using query: {query}\n")
+                    print(f"Using query: {query_str}\n")
                     page_of_document_families: PageDocumentFamilyEndpoint = (
-                        document_store.query(query, page, pagesize, sort)
+                        document_store.query(query_str, page, pagesize, sort)
                     )
 
             if not stream:
