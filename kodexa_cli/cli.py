@@ -411,24 +411,108 @@ def deploy(
         slug: Optional[str] = None,
 ) -> None:
     """Deploy a component to a Kodexa platform instance."""
-    try:
-        client = KodexaClient(access_token=token, url=url)
-        if file:
-            with open(file, 'r') as f:
-                component = json.load(f)
-                client.deploy_component(component)
-        elif files:
-            for f in files:
-                with open(f, 'r') as fp:
-                    component = json.load(fp)
-                    client.deploy_component(component)
-        print("Deployed successfully")
-    except FileNotFoundError:
-        print(f"Error: File not found")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error deploying: {str(e)}")
-        sys.exit(1)
+    """
+    Deploy a component to a Kodexa platform instance from a file or stdin
+    """
+
+    client = KodexaClient(access_token=token, url=url)
+
+    def deploy_obj(obj):
+        if "deployed" in obj:
+            del obj["deployed"]
+
+        overlay_obj = None
+
+        if overlay is not None:
+            print("Reading overlay")
+            if overlay.endswith("yaml") or overlay.endswith("yml"):
+                overlay_obj = yaml.safe_load(sys.stdin.read())
+            elif overlay.endswith("json"):
+                overlay_obj = json.loads(sys.stdin.read())
+            else:
+                raise Exception(
+                    "Unable to determine the format of the overlay file, must be .json or .yml/.yaml"
+                )
+
+        if isinstance(obj, list):
+            print(f"Found {len(obj)} components")
+            for o in obj:
+                if overlay_obj:
+                    o = merge(o, overlay_obj)
+
+                component = client.deserialize(o)
+                if org is not None:
+                    component.org_slug = org
+                print(
+                    f"Deploying component {component.slug}:{component.version} to {client.get_url()}"
+                )
+                from datetime import datetime
+
+                start = datetime.now()
+                component.deploy(update=update)
+                from datetime import datetime
+
+                print(
+                    f"Deployed at {datetime.now()}, took {datetime.now() - start} seconds"
+                )
+
+        else:
+            if overlay_obj:
+                obj = merge(obj, overlay_obj)
+
+            component = client.deserialize(obj)
+
+            if version is not None:
+                component.version = version
+            if slug is not None:
+                component.slug = slug
+            if org is not None:
+                component.org_slug = org
+            print(f"Deploying component {component.slug}:{component.version}")
+            log_details = component.deploy(update=update)
+            for log_detail in log_details:
+                print(log_detail)
+
+    if files is not None:
+        from rich.progress import track
+
+        for idx in track(
+                range(len(files)), description=f"Deploying {len(files)} files"
+        ):
+            obj = {}
+            file = files[idx]
+            with open(file, "r") as f:
+                if file.lower().endswith(".json"):
+                    obj.update(json.load(f))
+                elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
+                    obj.update(yaml.safe_load(f))
+                else:
+                    raise Exception("Unsupported file type")
+
+                deploy_obj(obj)
+    elif file is None:
+        print("Reading from stdin")
+        if format == "yaml" or format == "yml":
+            obj = yaml.safe_load(sys.stdin.read())
+        elif format == "json":
+            obj = json.loads(sys.stdin.read())
+        else:
+            raise Exception("You must provide a format if using stdin")
+
+        deploy_obj(obj)
+    else:
+        print("Reading from file", file)
+        with open(file, "r") as f:
+            if file.lower().endswith(".json"):
+                obj = json.load(f)
+            elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
+                obj = yaml.safe_load(f)
+            else:
+                raise Exception("Unsupported file type")
+
+            deploy_obj(obj)
+
+    print("Deployed :tada:")
 
 
 @cli.command()
@@ -442,7 +526,7 @@ def logs(_: Info, execution_id: str, url: str, token: str) -> None:
     """Get the logs for a specific execution."""
     try:
         client = KodexaClient(url=url, access_token=token)
-        logs_data = client.get_logs(execution_id)
+        logs_data = client.executions.get(execution_id).logs
         print(logs_data)
     except Exception as e:
         print(f"Error getting logs: {str(e)}")
