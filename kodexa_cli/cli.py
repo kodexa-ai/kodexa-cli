@@ -384,7 +384,6 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
 
 
 @cli.command()
-@click.argument("file", required=False)
 @click.argument("files", nargs=-1)
 @click.option("--org", help="Organization slug")
 @click.option(
@@ -400,7 +399,6 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
 def deploy(
         _: Info,
         org: Optional[str],
-        file: str,
         files: list[str],
         url: str,
         token: str,
