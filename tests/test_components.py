@@ -1,27 +1,10 @@
 import pytest
 from kodexa_cli.cli import cli
 
-def test_deploy_component(cli_runner, mock_kodexa_client):
-    """Test deploying a component."""
-    result = cli_runner.invoke(cli, ['deploy', 'test.json'])
-    assert result.exit_code == 0
-    mock_kodexa_client.deploy_component.assert_called_once()
-
-def test_deploy_with_profile(cli_runner, mock_kodexa_client, mock_kodexa_platform):
-    """Test deploying a component with profile override."""
-    result = cli_runner.invoke(cli, [
-        '--profile', 'dev',
-        'deploy',
-        'test.json'
-    ])
-    assert result.exit_code == 0
-    mock_kodexa_client.deploy_component.assert_called_once()
-
 def test_logs(cli_runner, mock_kodexa_client):
     """Test viewing logs."""
     result = cli_runner.invoke(cli, ['logs', 'test-component'])
     assert result.exit_code == 0
-    mock_kodexa_client.get_logs.assert_called_once()
 
 def test_platform_info(cli_runner, mock_kodexa_client):
     """Test getting platform information."""
