@@ -98,6 +98,7 @@ def _validate_profile(profile: str) -> bool:
     except Exception:
         return False
 
+
 def get_current_kodexa_profile() -> str:
     """Get the current Kodexa profile name.
 
@@ -246,7 +247,7 @@ def cli(info: Info, verbose: int, profile: Optional[str] = None) -> None:
             )
         )
     info.verbose = verbose
-    
+
     # Handle profile override
     if profile is not None:
         if not _validate_profile(profile):
@@ -326,7 +327,8 @@ def safe_entry_point() -> None:
 @click.option("--external-data/--no-external-data", default=False,
               help="Look for a .json file that has the same name as the upload and attach this as external data")
 @pass_info
-def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int, external_data: bool = False) -> None:
+def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int,
+           external_data: bool = False) -> None:
     """Upload a file to the Kodexa platform.
 
     Args:
@@ -709,7 +711,8 @@ def get(
                 console.print(table)
 
                 if organizations.total_elements > len(organizations.content):
-                    console.print(f"\nShowing {len(organizations.content)} of {organizations.total_elements} total organizations.")
+                    console.print(
+                        f"\nShowing {len(organizations.content)} of {organizations.total_elements} total organizations.")
 
                 sys.exit(1)
 
@@ -720,7 +723,8 @@ def get(
             sys.exit(1)
 
 
-def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, query: str, page: int, pagesize: int, sort: Optional[str], truncate: bool) -> None:
+def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, query: str, page: int, pagesize: int,
+                       sort: Optional[str], truncate: bool) -> None:
     """Print the output of the list in a table form.
 
     Args:
@@ -766,29 +770,29 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
 
         # Get column values
         for objects_endpoint in page_of_object_endpoints.content:
-                row = []
-                for col in column_list:
-                    if col == "filename":
-                        filename = ""
-                        for content_object in objects_endpoint.content_objects:
-                            if content_object.metadata and "path" in content_object.metadata:
-                                filename = content_object.metadata["path"]
-                                break  # Stop searching if path is found
-                        row.append(filename)
-                    elif col == "assistant_name":
-                        assistant_name = ""
-                        if objects_endpoint.pipeline and objects_endpoint.pipeline.steps:
-                            for step in objects_endpoint.pipeline.steps:
-                                assistant_name = step.name
-                                break  # Stop searching if path is found
-                        row.append(assistant_name)
-                    else:
-                        try:
-                            value = str(getattr(objects_endpoint, col))
-                            row.append(value)
-                        except AttributeError:
-                            row.append("")
-                table.add_row(*row, style="yellow")
+            row = []
+            for col in column_list:
+                if col == "filename":
+                    filename = ""
+                    for content_object in objects_endpoint.content_objects:
+                        if content_object.metadata and "path" in content_object.metadata:
+                            filename = content_object.metadata["path"]
+                            break  # Stop searching if path is found
+                    row.append(filename)
+                elif col == "assistant_name":
+                    assistant_name = ""
+                    if objects_endpoint.pipeline and objects_endpoint.pipeline.steps:
+                        for step in objects_endpoint.pipeline.steps:
+                            assistant_name = step.name
+                            break  # Stop searching if path is found
+                    row.append(assistant_name)
+                else:
+                    try:
+                        value = str(getattr(objects_endpoint, col))
+                        row.append(value)
+                    except AttributeError:
+                        row.append("")
+            table.add_row(*row, style="yellow")
 
         from rich.console import Console
 
@@ -811,15 +815,67 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
-@click.option("--family", help="Family parameter for query")
+@click.option(
+    "--download/--no-download",
+    default=False,
+    help="Download the KDDB for the latest in the family",
+)
+@click.option(
+    "--download-native/--no-download-native",
+    default=False,
+    help="Download the native file for the family",
+)
+@click.option(
+    "--stream/--no-stream",
+    default=False,
+    help="Stream the document families, don't paginate",
+)
+@click.option("--page", default=1, help="Page number")
+@click.option("--pageSize", default=10, help="Page size", type=int)
+@click.option(
+    "--limit", default=None, help="Limit the number of results in streaming", type=int
+)
+@click.option(
+    "--filter/--no-filter", default=False, help="Switch from query to filter syntax"
+)
+@click.option(
+    "--delete/--no-delete", default=False, help="Delete the matching document families"
+)
+@click.option(
+    "--reprocess", default=None, help="Reprocess using the provided assistant ID"
+)
+@click.option(
+    "--watch",
+    default=None,
+    help="Watch the results, refresh every n seconds",
+    type=int,
+)
+@click.option(
+    "--threads",
+    default=5,
+    help="Number of threads to use (only in streaming)",
+    type=int,
+)
+@click.option("--sort", default=None, help="Sort by ie. name:asc")
 @pass_info
 def query(
         _: Info,
-        ref: str,
         query: list[str],
+        ref: str,
         url: str,
         token: str,
-        family: Optional[str] = None,
+        download: bool,
+        download_native: bool,
+        page: int,
+        pagesize: int,
+        sort: None,
+        filter: None,
+        reprocess: Optional[str] = None,
+        delete: bool = False,
+        stream: bool = False,
+        threads: int = 5,
+        limit: Optional[int] = None,
+        watch: Optional[int] = None,
 ) -> None:
     """Query and manipulate documents in a document store.
 
@@ -844,17 +900,138 @@ def query(
     Returns:
         None
     """
-    try:
-        client = KodexaClient(url=url, access_token=token)
-        query_str = " ".join(list(query))
-        if family:
-            client.query(query_str, family=family)
+    client = KodexaClient(url=url, access_token=token)
+    from kodexa.platform.client import DocumentStoreEndpoint
+
+    query_str: str = " ".join(list(query))
+
+    document_store: DocumentStoreEndpoint = client.get_object_by_ref("store", ref)
+
+    while True:
+        if isinstance(document_store, DocumentStoreEndpoint):
+            if stream:
+                if filter:
+                    print(f"Streaming filter: {query}\n")
+                    page_of_document_families = document_store.stream_filter(
+                        query, sort, limit
+                    )
+                else:
+                    print(f"Streaming query: {query}\n")
+                    page_of_document_families = document_store.stream_query(
+                        query, sort, limit
+                    )
+            else:
+                if filter:
+                    print(f"Using filter: {query}\n")
+                    page_of_document_families: PageDocumentFamilyEndpoint = (
+                        document_store.filter(query, page, pagesize, sort)
+                    )
+                else:
+                    print(f"Using query: {query}\n")
+                    page_of_document_families: PageDocumentFamilyEndpoint = (
+                        document_store.query(query, page, pagesize, sort)
+                    )
+
+            if not stream:
+                from rich.table import Table
+
+                table = Table(title=f"Listing Document Family", title_style="bold blue")
+                column_list = ["path", "created", "modified", "size"]
+                # Create column header for the table
+                for col in column_list:
+                    table.add_column(col)
+
+                # Get column values
+                for objects_endpoint in page_of_document_families.content:
+                    row = []
+                    for col in column_list:
+                        try:
+                            value = str(getattr(objects_endpoint, col))
+                            row.append(value)
+                        except AttributeError:
+                            row.append("")
+                    table.add_row(*row, style="yellow")
+
+                from rich.console import Console
+
+                console = Console()
+                console.print(table)
+                total_pages = (
+                    page_of_document_families.total_pages
+                    if page_of_document_families.total_pages > 0
+                    else 1
+                )
+                console.print(
+                    f"\nPage [bold]{page_of_document_families.number + 1}[/bold] of [bold]{total_pages}[/bold] "
+                    f"(total of {page_of_document_families.total_elements} document families)"
+                )
+
+            # We want to go through all the endpoints to do the other actions
+            document_families = (
+                page_of_document_families
+                if stream
+                else page_of_document_families.content
+            )
+
+            if delete and not Confirm.ask(
+                    "You are sure you want to delete these families (this action can not be reverted)?"
+            ):
+                print("Aborting delete")
+                exit(1)
+
+            import concurrent.futures
+
+            if reprocess is not None:
+                # We need to get the assistant so we can reprocess
+                assistant = client.assistants.get(reprocess)
+                if assistant is None:
+                    print(f"Unable to find assistant with id {reprocess}")
+                    exit(1)
+
+                if not stream:
+                    print("You can't reprocess without streaming")
+                    exit(1)
+
+                print(f"Reprocessing with assistant {assistant.name}")
+
+            if stream:
+                print(f"Streaming document families (with {threads} threads)")
+                with concurrent.futures.ThreadPoolExecutor(
+                        max_workers=threads
+                ) as executor:
+
+                    def process_family(doc_family: DocumentFamilyEndpoint) -> None:
+                        if download:
+                            print(f"Downloading document for {doc_family.path}")
+                            doc_family.get_document().to_kddb().save(
+                                doc_family.path + ".kddb"
+                            )
+                        if download_native:
+                            print(
+                                f"Downloading native object for {doc_family.path}"
+                            )
+                            with open(doc_family.path + ".native", "wb") as f:
+                                f.write(doc_family.get_native())
+
+                        if delete:
+                            print(f"Deleting {doc_family.path}")
+                            doc_family.delete()
+
+                        if reprocess is not None:
+                            print(f"Reprocessing {doc_family.path}")
+                            doc_family.reprocess(assistant)
+
+                    executor.map(process_family, document_families)
+
         else:
-            client.query(query_str)
-        print("Query executed successfully")
-    except Exception as e:
-        print(f"Error executing query: {str(e)}")
-        sys.exit(1)
+            raise Exception("Unable to find document store with ref " + ref)
+
+        if not watch:
+            break
+        else:
+            import time
+
+            time.sleep(watch)
 
 
 @cli.command()
@@ -905,7 +1082,6 @@ def import_project(_: Info, path: str, url: str, token: str) -> None:
         sys.exit(1)
 
 
-
 @cli.command()
 @click.argument("project_id", required=True)
 @click.option(
@@ -922,6 +1098,8 @@ def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
     except Exception as e:
         print(f"Error bootstrapping project: {str(e)}")
         sys.exit(1)
+
+
 @cli.command()
 @click.argument("event_id", required=True)
 @click.option("--type", required=True, help="The type of event")
@@ -1052,8 +1230,6 @@ def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
                 print(f"Error getting current profile: {str(e)}")
 
 
-
-
 @cli.command()
 @pass_info
 @click.argument("taxonomy_file", required=False)
@@ -1104,7 +1280,8 @@ def login(_: Info, url: Optional[str] = None, token: Optional[str] = None) -> No
             profile_input = input("Enter your profile name (default): ").strip()
             profile_name = profile_input if profile_input else "default"
         else:  # Command-line mode
-            profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj, Info) and ctx.obj.profile is not None else "default"
+            profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj,
+                                                                             Info) and ctx.obj.profile is not None else "default"
         KodexaPlatform.login(kodexa_url, token, profile_name)
     except Exception as e:
         print(f"Error logging in: {str(e)}")
@@ -1192,4 +1369,3 @@ def package(
     except Exception as e:
         print(f"Error packaging component: {str(e)}")
         sys.exit(1)
-
