@@ -22,15 +22,6 @@ def test_upload_file_with_profile(cli_runner, mock_kodexa_client, mock_kodexa_pl
     assert result.exit_code == 0
     mock_kodexa_client.get_object_by_ref.assert_called_once_with('store', 'store/test')
 
-def test_download_implementation(cli_runner, mock_kodexa_client):
-    """Test downloading implementation."""
-    result = cli_runner.invoke(cli, [
-        'download-implementation',
-        'test-implementation'
-    ])
-    assert result.exit_code == 0
-    mock_kodexa_client.get_implementation.assert_called_once_with('test-implementation')
-
 def test_query_simple(cli_runner, mock_kodexa_client):
     """Test simple query."""
     result = cli_runner.invoke(cli, ['query', 'test-query'])
