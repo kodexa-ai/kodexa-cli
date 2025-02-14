@@ -844,6 +844,8 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
 @click.option(
     "--reprocess", default=None, help="Reprocess using the provided assistant ID"
 )
+@click.option("--add-label", default=None, help="Add a label to the matching document families")
+@click.option("--remove-label", default=None, help="Remove a label from the matching document families")
 @click.option(
     "--watch",
     default=None,
@@ -871,6 +873,8 @@ def query(
         sort: None,
         filter: None,
         reprocess: Optional[str] = None,
+        add_label: Optional[str] = None,
+        remove_label: Optional[str] = None,
         delete: bool = False,
         stream: bool = False,
         threads: int = 5,
@@ -1020,6 +1024,14 @@ def query(
                         if reprocess is not None:
                             print(f"Reprocessing {doc_family.path}")
                             doc_family.reprocess(assistant)
+
+                        if add_label is not None:
+                            print(f"Adding label {add_label} to {doc_family.path}")
+                            doc_family.add_label(add_label)
+
+                        if remove_label is not None:
+                            print(f"Removing label {remove_label} from {doc_family.path}")
+                            doc_family.remove_label(remove_label)
 
                     executor.map(process_family, document_families)
 
