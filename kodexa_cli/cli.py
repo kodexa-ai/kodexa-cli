@@ -1370,14 +1370,218 @@ def package(
         strip_version_build: bool = False,
         update_resource_versions: bool = True,
 ) -> None:
-    """Package an extension pack based on the kodexa.yml file."""
-    try:
-        client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
-        client.package_component(path)
-        print("Component packaged successfully")
-    except FileNotFoundError:
-        print(f"Error: File not found at path {path}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error packaging component: {str(e)}")
-        sys.exit(1)
+
+    if files is None or len(files) == 0:
+        files = ["kodexa.yml"]
+
+    packaged_resources = []
+
+    for file in files:
+        metadata_obj = MetadataHelper.load_metadata(path, file)
+
+        if "type" not in metadata_obj:
+            print("Unable to package, no type in metadata for ", file)
+            continue
+
+        print("Processing ", file)
+
+        try:
+            os.makedirs(output)
+        except OSError as e:
+            import errno
+
+            if e.errno != errno.EEXIST:
+                raise
+
+        if update_resource_versions:
+            if strip_version_build:
+                if "-" in version:
+                    new_version = version.split("-")[0]
+                else:
+                    new_version = version
+
+                metadata_obj["version"] = (
+                    new_version if new_version is not None else "1.0.0"
+                )
+            else:
+                metadata_obj["version"] = version if version is not None else "1.0.0"
+
+        unversioned_metadata = os.path.join(output, "kodexa.json")
+
+        def build_json():
+            versioned_metadata = os.path.join(
+                output,
+                f"{metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']}.json",
+            )
+            with open(versioned_metadata, "w") as outfile:
+                json.dump(metadata_obj, outfile)
+
+            copyfile(versioned_metadata, unversioned_metadata)
+            return Path(versioned_metadata).name
+
+        if "type" not in metadata_obj:
+            metadata_obj["type"] = "extensionPack"
+
+        if metadata_obj["type"] == "extensionPack":
+            if "source" in metadata_obj and "location" in metadata_obj["source"]:
+                metadata_obj["source"]["location"] = metadata_obj["source"][
+                    "location"
+                ].format(**metadata_obj)
+            build_json()
+
+            if helm:
+                # We will generate a helm chart using a template chart using the JSON we just created
+                import subprocess
+
+                unversioned_metadata = os.path.join(output, "kodexa.json")
+                copyfile(
+                    unversioned_metadata,
+                    f"{os.path.dirname(get_path())}/charts/extension-pack/resources/extension.json",
+                )
+
+                # We need to update the extension pack chart with the version
+                with open(
+                        f"{os.path.dirname(get_path())}/charts/extension-pack/Chart.yaml",
+                        "r",
+                ) as stream:
+                    chart_yaml = yaml.safe_load(stream)
+                    chart_yaml["version"] = metadata_obj["version"]
+                    chart_yaml["appVersion"] = metadata_obj["version"]
+                    chart_yaml["name"] = "extension-meta-" + metadata_obj["slug"]
+                    with open(
+                            f"{os.path.dirname(get_path())}/charts/extension-pack/Chart.yaml",
+                            "w",
+                    ) as stream:
+                        yaml.safe_dump(chart_yaml, stream)
+
+                subprocess.check_call(
+                    [
+                        "helm",
+                        "package",
+                        f"{os.path.dirname(get_path())}/charts/extension-pack",
+                        "--version",
+                        metadata_obj["version"],
+                        "--app-version",
+                        metadata_obj["version"],
+                        "--destination",
+                        output,
+                    ]
+                )
+
+            print("Extension pack has been packaged :tada:")
+
+        elif (
+                metadata_obj["type"].upper() == "STORE"
+                and metadata_obj["storeType"].upper() == "MODEL"
+        ):
+            model_content_metadata = ModelContentMetadata.model_validate(
+                metadata_obj["metadata"]
+            )
+
+            import uuid
+
+            model_content_metadata.state_hash = str(uuid.uuid4())
+            metadata_obj["metadata"] = model_content_metadata.model_dump(by_alias=True)
+            name = build_json()
+
+            # We need to work out the parent directory
+            parent_directory = os.path.dirname(file)
+            print("Going to build the implementation zip in", parent_directory)
+            with set_directory(Path(parent_directory)):
+                # This will create the implementation.zip - we will then need to change the filename
+                ModelStoreEndpoint.build_implementation_zip(model_content_metadata)
+                versioned_implementation = os.path.join(
+                    output,
+                    f"{metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']}.zip",
+                )
+                copyfile("implementation.zip", versioned_implementation)
+
+                # Delete the implementation
+                os.remove("implementation.zip")
+
+            print(
+                f"Model has been prepared {metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']}"
+            )
+            packaged_resources.append(name)
+        else:
+            print(
+                f"{metadata_obj['type']}-{metadata_obj['slug']}-{metadata_obj['version']} has been prepared"
+            )
+            name = build_json()
+            packaged_resources.append(name)
+
+    if len(packaged_resources) > 0:
+        if helm:
+            print(
+                f"{len(packaged_resources)} resources(s) have been prepared, we now need to package them into a resource package.\n"
+            )
+
+            if package_name is None:
+                raise Exception(
+                    "You must provide a package name when packaging resources"
+                )
+            if version is None:
+                raise Exception("You must provide a version when packaging resources")
+
+            # We need to create an index.json which is a json list of the resource names, versions and types
+            with open(os.path.join(output, "index.json"), "w") as index_json:
+                json.dump(packaged_resources, index_json)
+
+            # We need to update the extension pack chart with the version
+            with open(
+                    f"{os.path.dirname(get_path())}/charts/resource-pack/Chart.yaml", "r"
+            ) as stream:
+                chart_yaml = yaml.safe_load(stream)
+                chart_yaml["version"] = version
+                chart_yaml["appVersion"] = version
+                chart_yaml["name"] = package_name
+                with open(
+                        f"{os.path.dirname(get_path())}/charts/resource-pack/Chart.yaml",
+                        "w",
+                ) as stream:
+                    yaml.safe_dump(chart_yaml, stream)
+
+            # We need to update the extension pack chart with the version
+            with open(
+                    f"{os.path.dirname(get_path())}/charts/resource-pack/values.yaml", "r"
+            ) as stream:
+                chart_yaml = yaml.safe_load(stream)
+                chart_yaml["image"][
+                    "repository"
+                ] = f"{repository}/{package_name}-container"
+                chart_yaml["image"]["tag"] = version
+                with open(
+                        f"{os.path.dirname(get_path())}/charts/resource-pack/values.yaml",
+                        "w",
+                ) as stream:
+                    yaml.safe_dump(chart_yaml, stream)
+
+            import subprocess
+
+            subprocess.check_call(
+                [
+                    "helm",
+                    "package",
+                    f"{os.path.dirname(get_path())}/charts/resource-pack",
+                    "--version",
+                    version,
+                    "--app-version",
+                    metadata_obj["version"],
+                    "--destination",
+                    output,
+                ]
+            )
+
+            copyfile(
+                f"{os.path.dirname(get_path())}/charts/resource-container/Dockerfile",
+                os.path.join(output, "Dockerfile"),
+            )
+            copyfile(
+                f"{os.path.dirname(get_path())}/charts/resource-container/health-check.conf",
+                os.path.join(output, "health-check.conf"),
+            )
+            print(
+                "\nIn order to make the resource pack available you will need to run the following commands:\n"
+            )
+            print(f"docker build -t {repository}/{package_name}-container:{version} .")
+            print(f"docker push {repository}/{package_name}-container:{version}")
