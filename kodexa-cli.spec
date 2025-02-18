@@ -9,6 +9,8 @@ a = Analysis(
     hiddenimports=[
         'kodexa_cli',
         'kodexa_cli.cli',
+        'kodexa_cli.commands',
+        'kodexa_cli.platform',
         'click',
         'click.termui',
         'click.types',
@@ -30,7 +32,10 @@ a = Analysis(
         'rich.box',
         'rich.color',
         'rich.markup',
-        'rich.padding'
+        'rich.padding',
+        'rich.logging',
+        'rich.traceback',
+        'rich.pretty'
     ],
     hookspath=[],
     hooksconfig={},
