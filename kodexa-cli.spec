@@ -3,9 +3,9 @@
 
 a = Analysis(
     ['kodexa_cli/cli.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=[],
-    datas=[],
+    datas=[('kodexa_cli', 'kodexa_cli')],
     hiddenimports=[
         'kodexa_cli',
         'kodexa_cli.cli',
