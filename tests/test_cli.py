@@ -48,6 +48,10 @@ def binary_path(tmp_path_factory):
     if result.returncode != 0:
         result.check_returncode()
     
+    # Copy the binary to our test directory
+    shutil.copy("dist/kodexa", binary_path)
+    os.chmod(binary_path, 0o755)  # Make it executable
+    
     # Print binary output for debugging
     test_result = subprocess.run([binary_path, "--help"], capture_output=True, text=True)
     print("\nBinary --help output:")
