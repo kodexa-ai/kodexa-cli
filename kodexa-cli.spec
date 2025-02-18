@@ -54,8 +54,6 @@ exe = EXE(
     a.datas,
     [],
     name='kodexa',
-    [],
-    name='kodexa',
     debug=True,
     bootloader_ignore_signals=False,
     strip=False,
