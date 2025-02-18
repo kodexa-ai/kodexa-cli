@@ -52,7 +52,6 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
