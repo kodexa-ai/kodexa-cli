@@ -28,41 +28,39 @@ def test_global_profile_option_invalid(cli_runner, mock_kodexa_platform):
     assert "Profile 'invalid' does not exist" in result.output
     assert "Available profiles: default,dev,prod" in result.output
 
-def test_binary_help(tmp_path):
-    """Test that the binary shows help text."""
+@pytest.fixture(scope="session")
+def binary_path(tmp_path_factory):
+    """Build the binary once for all tests."""
     import subprocess
     import os
     import shutil
-    
+
+    # Create a temporary directory for the binary
+    binary_dir = tmp_path_factory.mktemp("binary")
+    binary_path = os.path.join(binary_dir, "kodexa")
+
     # Build the binary first
     subprocess.run(["poetry", "run", "pyinstaller", "kodexa-cli.spec"], check=True)
     
     # Copy the binary to our test directory
-    binary_path = os.path.join(tmp_path, "kodexa")
     shutil.copy("dist/kodexa", binary_path)
     
     # Make it executable
     os.chmod(binary_path, 0o755)
+    
+    return binary_path
+
+def test_binary_help(binary_path):
+    """Test that the binary shows help text."""
+    import subprocess
     
     result = subprocess.run([binary_path, "--help"], capture_output=True, text=True)
     assert result.returncode == 0
     assert "Usage:" in result.stdout
 
-def test_binary_version(tmp_path):
+def test_binary_version(binary_path):
     """Test that the binary shows version."""
     import subprocess
-    import os
-    import shutil
-    
-    # Build the binary first
-    subprocess.run(["poetry", "run", "pyinstaller", "kodexa-cli.spec"], check=True)
-    
-    # Copy the binary to our test directory
-    binary_path = os.path.join(tmp_path, "kodexa")
-    shutil.copy("dist/kodexa", binary_path)
-    
-    # Make it executable
-    os.chmod(binary_path, 0o755)
     
     result = subprocess.run([binary_path, "version"], capture_output=True, text=True)
     assert result.returncode == 0
