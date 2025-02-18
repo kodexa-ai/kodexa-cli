@@ -32,8 +32,18 @@ def test_binary_help(tmp_path):
     """Test that the binary shows help text."""
     import subprocess
     import os
+    import shutil
     
+    # Build the binary first
+    subprocess.run(["poetry", "run", "pyinstaller", "kodexa-cli.spec"], check=True)
+    
+    # Copy the binary to our test directory
     binary_path = os.path.join(tmp_path, "kodexa")
+    shutil.copy("dist/kodexa", binary_path)
+    
+    # Make it executable
+    os.chmod(binary_path, 0o755)
+    
     result = subprocess.run([binary_path, "--help"], capture_output=True, text=True)
     assert result.returncode == 0
     assert "Usage:" in result.stdout
@@ -42,8 +52,18 @@ def test_binary_version(tmp_path):
     """Test that the binary shows version."""
     import subprocess
     import os
+    import shutil
     
+    # Build the binary first
+    subprocess.run(["poetry", "run", "pyinstaller", "kodexa-cli.spec"], check=True)
+    
+    # Copy the binary to our test directory
     binary_path = os.path.join(tmp_path, "kodexa")
+    shutil.copy("dist/kodexa", binary_path)
+    
+    # Make it executable
+    os.chmod(binary_path, 0o755)
+    
     result = subprocess.run([binary_path, "version"], capture_output=True, text=True)
     assert result.returncode == 0
     assert "Kodexa Version:" in result.stdout
