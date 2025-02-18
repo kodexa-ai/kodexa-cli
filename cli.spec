@@ -59,7 +59,5 @@ exe = EXE(
     codesign_identity=None,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
-    target_arch=None,
     entitlements_file=None,
 )
