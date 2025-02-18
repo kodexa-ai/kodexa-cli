@@ -48,8 +48,7 @@ pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
-    [('kodexa', 'kodexa_cli/cli.py', 'PYSOURCE')],
-    a.scripts,
+    a.scripts + [('kodexa', 'kodexa_cli/cli.py', 'PYSOURCE')],
     a.binaries,
     a.datas,
     [],
