@@ -2,6 +2,10 @@ name: Kodexa CLI Python Package
 
 on:
   push:
+    branches:
+      - main
+    tags:
+      - 'v*'
 
 jobs:
   test:
@@ -32,7 +36,7 @@ jobs:
   build-and-release:
     name: Build, Package & Release
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -48,28 +52,38 @@ jobs:
       - name: Increment version
         id: version
         run: |
-          BRANCH_NAME=$(echo $GITHUB_REF | sed 's/refs\/heads\///')
+          REF_TYPE=$(echo $GITHUB_REF | cut -d'/' -f2)
           VERSION=$(poetry version --short)
-          MINOR_PATCH_PART=$(echo $VERSION | awk -F '.' '{print $1"."$2}')
-          PATCH_PART=$(echo $VERSION | awk -F '.' '{print substr($NF,1,1)}')
-          if [[ $BRANCH_NAME == "fix"* || $BRANCH_NAME == "bugs"* ]]; then
-            NEW_LATEST_PATCH_PART=$((PATCH_PART+1))b${GITHUB_RUN_ID}
-          elif [[ $BRANCH_NAME == "feature"* ]]; then
-            NEW_LATEST_PATCH_PART=$((PATCH_PART+1))a${GITHUB_RUN_ID}
-          elif [[ $BRANCH_NAME == "test"* ]]; then
-            NEW_LATEST_PATCH_PART=$((PATCH_PART+1))rc${GITHUB_RUN_ID}
-          elif [[ $BRANCH_NAME == "main"* ]]; then
-            poetry version patch
-            VERSION=$(poetry version --short)
-            MINOR_PATCH_PART=${VERSION#*.}
-            LAST_VERSION_PART_PREFIX=${MINOR_PATCH_PART%??}
-            PATCH_PART=${LAST_VERSION_PART_PREFIX%.*}
-            NEW_LATEST_PATCH_PART=${PATCH_PART}${GITHUB_RUN_ID}
+          
+          if [[ $REF_TYPE == "tags" ]]; then
+            # For tags, use the tag version directly
+            TAG_VERSION=$(echo $GITHUB_REF | cut -d'/' -f3)
+            NEW_VERSION=${TAG_VERSION#v}  # Remove 'v' prefix if present
           else
-            echo "Invalid branch name"
-            exit 1
+            # For branches, use existing logic
+            BRANCH_NAME=$(echo $GITHUB_REF | sed 's/refs\/heads\///')
+            MINOR_PATCH_PART=$(echo $VERSION | awk -F '.' '{print $1"."$2}')
+            PATCH_PART=$(echo $VERSION | awk -F '.' '{print substr($NF,1,1)}')
+            
+            if [[ $BRANCH_NAME == "fix"* || $BRANCH_NAME == "bugs"* ]]; then
+              NEW_LATEST_PATCH_PART=$((PATCH_PART+1))b${GITHUB_RUN_ID}
+            elif [[ $BRANCH_NAME == "feature"* ]]; then
+              NEW_LATEST_PATCH_PART=$((PATCH_PART+1))a${GITHUB_RUN_ID}
+            elif [[ $BRANCH_NAME == "test"* ]]; then
+              NEW_LATEST_PATCH_PART=$((PATCH_PART+1))rc${GITHUB_RUN_ID}
+            elif [[ $BRANCH_NAME == "main"* ]]; then
+              poetry version patch
+              VERSION=$(poetry version --short)
+              MINOR_PATCH_PART=${VERSION#*.}
+              LAST_VERSION_PART_PREFIX=${MINOR_PATCH_PART%??}
+              PATCH_PART=${LAST_VERSION_PART_PREFIX%.*}
+              NEW_LATEST_PATCH_PART=${PATCH_PART}${GITHUB_RUN_ID}
+            else
+              echo "Invalid branch name"
+              exit 1
+            fi
+            NEW_VERSION=${VERSION%.*}.${NEW_LATEST_PATCH_PART}
           fi
-          NEW_VERSION=${VERSION%.*}.${NEW_LATEST_PATCH_PART}
           echo $NEW_VERSION
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "versionType=Release" >> $GITHUB_OUTPUT
@@ -95,7 +109,7 @@ jobs:
 
   build-executables:
     needs: build-and-release
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     name: Build ${{ matrix.os }} Executable
     runs-on: ${{ matrix.os }}
     strategy:
@@ -131,7 +145,7 @@ jobs:
 
   create-release:
     needs: [ build-and-release, build-executables ]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
