@@ -6,7 +6,6 @@ a = Analysis(
     pathex=['.'],
     binaries=[],
     datas=[('kodexa_cli', 'kodexa_cli')],
-    entrypoint='kodexa_cli.cli:safe_entry_point',
     hiddenimports=[
         'kodexa_cli',
         'kodexa_cli.cli',
@@ -44,7 +43,7 @@ pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
-    a.scripts,
+    a.scripts + [('kodexa', 'kodexa_cli/cli.py', 'PYSOURCE')],
     a.binaries,
     a.datas,
     [],
