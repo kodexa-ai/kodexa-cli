@@ -40,7 +40,13 @@ def binary_path(tmp_path_factory):
     binary_path = os.path.join(binary_dir, "kodexa")
 
     # Build the binary first
-    subprocess.run(["poetry", "run", "pyinstaller", "kodexa-cli.spec"], check=True)
+    result = subprocess.run(["poetry", "run", "pyinstaller", "kodexa-cli.spec"], 
+                          capture_output=True, text=True)
+    if result.returncode != 0:
+        print("PyInstaller output:")
+        print(result.stdout)
+        print(result.stderr)
+        result.check_returncode()
     
     # Copy the binary to our test directory
     shutil.copy("dist/kodexa", binary_path)
