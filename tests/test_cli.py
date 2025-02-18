@@ -27,3 +27,23 @@ def test_global_profile_option_invalid(cli_runner, mock_kodexa_platform):
     assert result.exit_code == 1
     assert "Profile 'invalid' does not exist" in result.output
     assert "Available profiles: default,dev,prod" in result.output
+
+def test_binary_help(tmp_path):
+    """Test that the binary shows help text."""
+    import subprocess
+    import os
+    
+    binary_path = os.path.join(tmp_path, "kodexa")
+    result = subprocess.run([binary_path, "--help"], capture_output=True, text=True)
+    assert result.returncode == 0
+    assert "Usage:" in result.stdout
+
+def test_binary_version(tmp_path):
+    """Test that the binary shows version."""
+    import subprocess
+    import os
+    
+    binary_path = os.path.join(tmp_path, "kodexa")
+    result = subprocess.run([binary_path, "version"], capture_output=True, text=True)
+    assert result.returncode == 0
+    assert "Kodexa Version:" in result.stdout

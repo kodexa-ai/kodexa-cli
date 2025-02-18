@@ -6,7 +6,15 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=[
+        'click',
+        'click.termui',
+        'click.types',
+        'rich',
+        'rich.console',
+        'rich.table',
+        'rich.prompt'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
