@@ -40,7 +40,8 @@ def binary_path(tmp_path_factory):
     binary_path = os.path.join(binary_dir, "kodexa")
 
     # Build the binary first
-    result = subprocess.run(["poetry", "run", "pyinstaller", "kodexa-cli.spec", "--log-level=DEBUG"], 
+    os.makedirs("dist", exist_ok=True)  # Ensure dist directory exists
+    result = subprocess.run(["poetry", "run", "pyinstaller", "--distpath", "dist", "kodexa-cli.spec", "--log-level=DEBUG"], 
                           capture_output=True, text=True)
     print("PyInstaller output:")
     print(result.stdout)
@@ -55,6 +56,9 @@ def binary_path(tmp_path_factory):
         result.check_returncode()
     
     # Copy the binary to our test directory
+    if not os.path.exists("dist/kodexa"):
+        raise FileNotFoundError("PyInstaller did not create the binary in dist/kodexa")
+    
     shutil.copy("dist/kodexa", binary_path)
     os.chmod(binary_path, 0o755)  # Make it executable
     
