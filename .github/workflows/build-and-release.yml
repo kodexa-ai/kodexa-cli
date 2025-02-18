@@ -121,12 +121,16 @@ jobs:
             artifact_name: kodexa
           - os: windows-latest
             artifact_name: kodexa.exe
+          - os: windows-latest
+            artifact_name: kodexa-arm64.exe
+            architecture: ARM64
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          architecture: ${{ matrix.architecture || 'x64' }}
       - name: Run image
         uses: abatilo/actions-poetry@v2
       - name: Install dependencies
@@ -166,3 +170,4 @@ jobs:
             artifacts/kdxa/kdxa
             artifacts/kodexa/kodexa
             artifacts/kodexa.exe/kodexa.exe
+            artifacts/kodexa-arm64.exe/kodexa-arm64.exe
