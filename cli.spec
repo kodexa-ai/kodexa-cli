@@ -61,6 +61,5 @@ exe = EXE(
     runtime_tmpdir=None,
     console=True,
     target_arch=None,
-    codesign_identity=None,
     entitlements_file=None,
 )
