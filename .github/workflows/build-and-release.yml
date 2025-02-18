@@ -6,6 +6,9 @@ on:
       - main
     tags:
       - 'v*'
+  pull_request:
+    branches:
+      - main
 
 jobs:
   test:
@@ -36,7 +39,7 @@ jobs:
   build-and-release:
     name: Build, Package & Release
     needs: test
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -109,7 +112,7 @@ jobs:
 
   build-executables:
     needs: build-and-release
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && github.event_name != 'pull_request'
     name: Build ${{ matrix.os }} Executable
     runs-on: ${{ matrix.os }}
     strategy:
@@ -149,7 +152,7 @@ jobs:
 
   create-release:
     needs: [ build-and-release, build-executables ]
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
