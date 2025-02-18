@@ -45,6 +45,12 @@ def binary_path(tmp_path_factory):
     print("PyInstaller output:")
     print(result.stdout)
     print(result.stderr)
+    
+    # Print debug information
+    print("\nChecking binary locations:")
+    print("Current directory:", os.getcwd())
+    print("dist directory contents:", os.listdir("dist") if os.path.exists("dist") else "dist directory not found")
+    
     if result.returncode != 0:
         result.check_returncode()
     
