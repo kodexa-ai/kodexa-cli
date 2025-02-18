@@ -7,6 +7,8 @@ a = Analysis(
     binaries=[],
     datas=[],
     hiddenimports=[
+        'kodexa_cli',
+        'kodexa_cli.cli',
         'click',
         'click.termui',
         'click.types',
