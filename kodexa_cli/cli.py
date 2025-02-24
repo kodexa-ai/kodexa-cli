@@ -442,7 +442,7 @@ def get(
                 if stream:
                     if filter:
                         print(f"Streaming filter: {query}\n")
-                        all_objects = objects_endpoint.stream_filter(query, sort=sort)
+                        all_objects = objects_endpoint.stream(filters=[query], sort=sort)
                     else:
                         print(f"Streaming query: {query}\n")
                         all_objects = objects_endpoint.stream(query=query, sort=sort)
@@ -466,7 +466,7 @@ def get(
                 else:
                     if filter:
                         print(f"Using filter: {query}\n")
-                        objects_endpoint = objects_endpoint.filter(query, page, pagesize, sort)
+                        objects_endpoint = objects_endpoint.list("*", page, pagesize, sort, filters=[query])
                     else:
                         print(f"Using query: {query}\n")
                         objects_endpoint = objects_endpoint.list(query=query, page=page, page_size=pagesize, sort=sort)
@@ -493,9 +493,9 @@ def get(
                     objects_endpoint = client.get_object_type(object_type, organization)
                     if stream:
                         if filter:
-                            all_objects = objects_endpoint.stream_filter(query, sort=sort)
+                            all_objects = objects_endpoint.stream(filters=[query], sort=sort)
                         else:
-                            all_objects = objects_endpoint.list_all(query=query, sort=sort)
+                            all_objects = objects_endpoint.stream(query=query, sort=sort)
 
                         if delete and not Confirm.ask(
                             "Are you sure you want to delete these objects? This action cannot be undone."
@@ -568,13 +568,13 @@ def get(
         if "content" not in str(e).lower() and "empty" not in str(e).lower():
             sys.exit(1)
 
-def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, query: str, page: int, pagesize: int,
+def print_object_table(object_metadata: dict[str, Any], objects_endpoint_page: Any, query: str, page: int, pagesize: int,
                        sort: Optional[str], truncate: bool) -> None:
     """Print the output of the list in a table form.
 
     Args:
         object_metadata (dict[str, Any]): Metadata about the object type
-        objects_endpoint (Any): Endpoint for accessing objects
+        objects_endpoint_page (Any): Endpoint for accessing objects
         query (str): Query string to filter results
         page (int): Page number for pagination
         pagesize (int): Number of items per page
@@ -602,7 +602,7 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
             table.add_column(col, overflow="fold")
 
     try:
-        if not hasattr(objects_endpoint, 'content'):
+        if not hasattr(objects_endpoint_page, 'content'):
             from rich.console import Console
             console = Console()
             console.print(table)
@@ -610,7 +610,7 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
             return
 
         # Get column values
-        for objects_endpoint in objects_endpoint.content:
+        for objects_endpoint in objects_endpoint_page.content:
             row = []
             for col in column_list:
                 if col == "filename":
@@ -643,11 +643,10 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
 
         console = Console()
         console.print(table)
-        if hasattr(objects_endpoint, 'number') and hasattr(objects_endpoint, 'total_pages'):
-            console.print(
-                f"Page [bold]{objects_endpoint.number + 1}[/bold] of [bold]{objects_endpoint.total_pages}[/bold] "
-                f"(total of {objects_endpoint.total_elements} objects)"
-            )
+        console.print(
+            f"Page [bold]{objects_endpoint_page.number + 1}[/bold] of [bold]{objects_endpoint_page.total_pages}[/bold] "
+            f"(total of {objects_endpoint_page.total_elements} objects)"
+        )
     except Exception as e:
         print("e:", e)
         raise e
