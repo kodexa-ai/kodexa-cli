@@ -67,6 +67,7 @@ DEFAULT_COLUMNS = {
         "slug",
         "name",
     ],
+    "tasks": ["id", "title", "description", "project.name", "project.organization.name", "status.label"],
     "default": ["ref", "name", "description", "type", "template"],
 }
 
