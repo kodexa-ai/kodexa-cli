@@ -32,6 +32,7 @@ from kodexa.platform.client import (
 )
 from rich import print
 from rich.prompt import Confirm
+import concurrent.futures
 
 logging.root.addHandler(logging.StreamHandler(sys.stdout))
 
@@ -70,6 +71,51 @@ DEFAULT_COLUMNS = {
     "tasks": ["id", "title", "description", "project.name", "project.organization.name", "status.label"],
     "default": ["ref", "name", "description", "type", "template"],
 }
+
+
+def print_available_object_types():
+    """Print a table of available object types."""
+    from rich.table import Table
+    from rich.console import Console
+
+    table = Table(title="Available Object Types", title_style="bold blue")
+    table.add_column("Type", style="cyan")
+    table.add_column("Description", style="yellow")
+
+    # Add rows for each object type
+    object_types = {
+        "extensionPacks": "Extension packages for the platform",
+        "projects": "Kodexa projects",
+        "assistants": "AI assistants",
+        "executions": "Execution records",
+        "memberships": "Organization memberships",
+        "stores": "Stores",
+        "organizations": "Organizations",
+        "documentFamily": "Document family collections",
+        "exception": "System exceptions",
+        "dashboard": "Project dashboards",
+        "dataForm": "Data form definitions",
+        "task": "System tasks",
+        "retainedGuidance": "Retained guidance sets",
+        "workspace": "Project workspaces",
+        "channel": "Communication channels",
+        "message": "System messages",
+        "action": "System actions",
+        "pipeline": "Processing pipelines",
+        "modelRuntime": "Model runtime environments",
+        "projectTemplate": "Project templates",
+        "assistantDefinition": "Assistant definitions",
+        "guidanceSet": "Guidance sets",
+        "credential": "System credentials",
+        "taxonomy": "Classification taxonomies"
+    }
+
+    for obj_type, description in object_types.items():
+        table.add_row(obj_type, description)
+
+    console = Console()
+    console.print("\nPlease specify an object type to get. Available types:")
+    console.print(table)
 
 
 def get_path():
@@ -318,294 +364,6 @@ def safe_entry_point() -> None:
 
 
 @cli.command()
-@click.argument("ref", required=True)
-@click.argument("paths", required=True, nargs=-1)
-@click.option(
-    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
-)
-@click.option("--threads", default=5, help="Number of threads to use")
-@click.option("--token", default=get_current_access_token(), help="Access token")
-@click.option("--external-data/--no-external-data", default=False,
-              help="Look for a .json file that has the same name as the upload and attach this as external data")
-@pass_info
-def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int,
-           external_data: bool = False) -> None:
-    """Upload a file to the Kodexa platform.
-
-    Args:
-        ref (str): Reference to the document store to upload to
-        paths (list[str]): Paths to the files to upload
-        token (str): Access token for authentication
-        url (str): URL to the Kodexa server
-        threads (int): Number of threads to use for upload (default: 5)
-        external_data (bool): Whether to look for external data JSON files (default: False)
-
-    Returns:
-        None
-    """
-
-    client = KodexaClient(url=url, access_token=token)
-    document_store = client.get_object_by_ref("store", ref)
-
-    from kodexa.platform.client import DocumentStoreEndpoint
-
-    print(f"Uploading {len(paths)} files to {ref}\n")
-    if isinstance(document_store, DocumentStoreEndpoint):
-        from rich.progress import track
-
-        def upload_file(path, external_data):
-            try:
-                if external_data:
-                    external_data_path = f"{os.path.splitext(path)[0]}.json"
-                    if os.path.exists(external_data_path):
-                        with open(external_data_path, "r") as f:
-                            external_data = json.load(f)
-                            document_store.upload_file(path, external_data=external_data)
-                            return f"Successfully uploaded {path} with external data {json.dumps(external_data)}"
-                    else:
-                        return f"External data file not found for {path}"
-                else:
-                    document_store.upload_file(path)
-                    return f"Successfully uploaded {path}"
-            except Exception as e:
-                return f"Error uploading {path}: {e}"
-
-        from concurrent.futures import ThreadPoolExecutor
-
-        # Using ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            upload_args = [(path, external_data) for path in paths]
-            for result in track(
-                    executor.map(lambda args: upload_file(*args), upload_args),
-                    total=len(paths),
-                    description="Uploading files",
-            ):
-                print(result)
-        print("Upload complete :tada:")
-    else:
-        print(f"{ref} is not a document store")
-
-
-@cli.command()
-@click.argument("files", nargs=-1)
-@click.option("--org", help="Organization slug")
-@click.option(
-    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
-)
-@click.option("--token", default=get_current_access_token(), help="Access token")
-@click.option("--format", help="Format of input if from stdin (json, yaml)")
-@click.option("--update/--no-update", default=False, help="Update existing components")
-@click.option("--version", help="Override version for component")
-@click.option("--overlay", help="JSON/YAML file to overlay metadata")
-@click.option("--slug", help="Override slug for component")
-@pass_info
-def deploy(
-        _: Info,
-        org: Optional[str],
-        files: list[str],
-        url: str,
-        token: str,
-        format: Optional[str] = None,
-        update: bool = False,
-        version: Optional[str] = None,
-        overlay: Optional[str] = None,
-        slug: Optional[str] = None,
-) -> None:
-    """Deploy a component to a Kodexa platform instance."""
-    """
-    Deploy a component to a Kodexa platform instance from a file or stdin
-    """
-
-    client = KodexaClient(access_token=token, url=url)
-
-    def deploy_obj(obj):
-        if "deployed" in obj:
-            del obj["deployed"]
-
-        overlay_obj = None
-
-        if overlay is not None:
-            print("Reading overlay")
-            if overlay.endswith("yaml") or overlay.endswith("yml"):
-                overlay_obj = yaml.safe_load(sys.stdin.read())
-            elif overlay.endswith("json"):
-                overlay_obj = json.loads(sys.stdin.read())
-            else:
-                raise Exception(
-                    "Unable to determine the format of the overlay file, must be .json or .yml/.yaml"
-                )
-
-        if isinstance(obj, list):
-            print(f"Found {len(obj)} components")
-            for o in obj:
-                if overlay_obj:
-                    o = merge(o, overlay_obj)
-
-                component = client.deserialize(o)
-                if org is not None:
-                    component.org_slug = org
-                print(
-                    f"Deploying component {component.slug}:{component.version} to {client.get_url()}"
-                )
-                from datetime import datetime
-
-                start = datetime.now()
-                component.deploy(update=update)
-                from datetime import datetime
-
-                print(
-                    f"Deployed at {datetime.now()}, took {datetime.now() - start} seconds"
-                )
-
-        else:
-            if overlay_obj:
-                obj = merge(obj, overlay_obj)
-
-            component = client.deserialize(obj)
-
-            if version is not None:
-                component.version = version
-            if slug is not None:
-                component.slug = slug
-            if org is not None:
-                component.org_slug = org
-            print(f"Deploying component {component.slug}:{component.version}")
-            log_details = component.deploy(update=update)
-            for log_detail in log_details:
-                print(log_detail)
-
-    if files is not None:
-        from rich.progress import track
-
-        for idx in track(
-                range(len(files)), description=f"Deploying {len(files)} files"
-        ):
-            obj = {}
-            file = files[idx]
-            with open(file, "r") as f:
-                if file.lower().endswith(".json"):
-                    obj.update(json.load(f))
-                elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
-                    obj.update(yaml.safe_load(f))
-                else:
-                    raise Exception("Unsupported file type")
-
-                deploy_obj(obj)
-    elif file is None:
-        print("Reading from stdin")
-        if format == "yaml" or format == "yml":
-            obj = yaml.safe_load(sys.stdin.read())
-        elif format == "json":
-            obj = json.loads(sys.stdin.read())
-        else:
-            raise Exception("You must provide a format if using stdin")
-
-        deploy_obj(obj)
-    else:
-        print("Reading from file", file)
-        with open(file, "r") as f:
-            if file.lower().endswith(".json"):
-                obj = json.load(f)
-            elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
-                obj = yaml.safe_load(f)
-            else:
-                raise Exception("Unsupported file type")
-
-            deploy_obj(obj)
-
-    print("Deployed :tada:")
-
-
-@cli.command()
-@click.argument("execution_id", required=True)
-@click.option(
-    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
-)
-@click.option("--token", default=get_current_access_token(), help="Access token")
-@pass_info
-def logs(_: Info, execution_id: str, url: str, token: str) -> None:
-    """Get the logs for a specific execution."""
-    try:
-        client = KodexaClient(url=url, access_token=token)
-        logs_data = client.executions.get(execution_id).logs
-        print(logs_data)
-    except Exception as e:
-        print(f"Error getting logs: {str(e)}")
-        sys.exit(1)
-
-
-@cli.command()
-@click.argument("ref", required=True)
-@click.argument("output_file", required=False, default="model_implementation")
-@click.option(
-    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
-)
-@click.option("--token", default=get_current_access_token(), help="Access token")
-@pass_info
-def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str) -> None:
-    """Download the implementation of a model store.
-
-    Args:
-        ref (str): Reference to the model store
-        output_file (str): Path to save the implementation
-        url (str): URL of the Kodexa server
-        token (str): Access token for authentication
-
-    Returns:
-        None
-    """
-    # We are going to download the implementation of the component
-    client = KodexaClient(url=url, access_token=token)
-    model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
-    model_store_endpoint.download_implementation(output_file)
-
-
-def print_available_object_types():
-    """Print a table of available object types."""
-    from rich.table import Table
-    from rich.console import Console
-
-    table = Table(title="Available Object Types", title_style="bold blue")
-    table.add_column("Type", style="cyan")
-    table.add_column("Description", style="yellow")
-
-    # Add rows for each object type
-    object_types = {
-        "extensionPacks": "Extension packages for the platform",
-        "projects": "Kodexa projects",
-        "assistants": "AI assistants",
-        "executions": "Execution records",
-        "memberships": "Organization memberships",
-        "stores": "Stores",
-        "organizations": "Organizations",
-        "documentFamily": "Document family collections",
-        "exception": "System exceptions",
-        "dashboard": "Project dashboards",
-        "dataForm": "Data form definitions",
-        "task": "System tasks",
-        "retainedGuidance": "Retained guidance sets",
-        "workspace": "Project workspaces",
-        "channel": "Communication channels",
-        "message": "System messages",
-        "action": "System actions",
-        "pipeline": "Processing pipelines",
-        "modelRuntime": "Model runtime environments",
-        "projectTemplate": "Project templates",
-        "assistantDefinition": "Assistant definitions",
-        "guidanceSet": "Guidance sets",
-        "credential": "System credentials",
-        "taxonomy": "Classification taxonomies"
-    }
-
-    for obj_type, description in object_types.items():
-        table.add_row(obj_type, description)
-
-    console = Console()
-    console.print("\nPlease specify an object type to get. Available types:")
-    console.print(table)
-
-
-@cli.command()
 @click.argument("object_type", required=False)
 @click.argument("ref", required=False)
 @click.option(
@@ -613,11 +371,14 @@ def print_available_object_types():
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option("--query", default="*", help="Limit the results using a query")
+@click.option("--filter/--no-filter", default=False, help="Switch from query to filter syntax")
 @click.option("--format", default=None, help="The format to output (json, yaml)")
 @click.option("--page", default=1, help="Page number")
 @click.option("--pageSize", default=10, help="Page size")
 @click.option("--sort", default=None, help="Sort by (ie. startDate:desc)")
 @click.option("--truncate/--no-truncate", default=True, help="Truncate the output or not")
+@click.option("--stream/--no-stream", default=False, help="Stream results instead of using table output")
+@click.option("--delete/--no-delete", default=False, help="Delete streamed objects")
 @pass_info
 def get(
         _: Info,
@@ -626,11 +387,14 @@ def get(
         url: str = get_current_kodexa_url(),
         token: str = get_current_access_token(),
         query: str = "*",
+        filter: bool = False,
         format: Optional[str] = None,
         page: int = 1,
         pagesize: int = 10,
         sort: Optional[str] = None,
         truncate: bool = True,
+        stream: bool = False,
+        delete: bool = False
 ) -> None:
     """List instances of a component or entity type.
 
@@ -640,11 +404,14 @@ def get(
         url (str): URL of the Kodexa server
         token (str): Access token for authentication
         query (str): Query string to filter results
+        filter (bool): Use filter syntax instead of query syntax
         format (Optional[str]): Output format (json, yaml)
         page (int): Page number for pagination (default: 1)
         pagesize (int): Number of items per page (default: 10)
         sort (Optional[str]): Sort field and direction (e.g., "startDate:desc")
         truncate (bool): Whether to truncate output (default: True)
+        stream (bool): Whether to stream results (default: False)
+        delete (bool): Whether to delete streamed objects (default: False)
 
     Returns:
         None
@@ -672,7 +439,38 @@ def get(
                     print(yaml.dump(object_dict, indent=4))
                     GLOBAL_IGNORE_COMPLETE = True
             else:
-                print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort, truncate)
+                if stream:
+                    if filter:
+                        print(f"Streaming filter: {query}\n")
+                        all_objects = objects_endpoint.stream_filter(query, sort=sort)
+                    else:
+                        print(f"Streaming query: {query}\n")
+                        all_objects = objects_endpoint.stream(query=query, sort=sort)
+
+                    if delete and not Confirm.ask(
+                        "Are you sure you want to delete these objects? This action cannot be undone."
+                    ):
+                        print("Aborting delete")
+                        exit(1)
+
+                    for obj in all_objects:
+                        try:
+                            print(f"Processing {obj.id}")
+                            if delete:
+                                obj.delete()
+                                print(f"Deleted {obj.id}")
+                            else:
+                                print(obj)
+                        except Exception as e:
+                            print(f"Error processing {obj.id}: {e}")
+                else:
+                    if filter:
+                        print(f"Using filter: {query}\n")
+                        objects_endpoint = objects_endpoint.filter(query, page, pagesize, sort)
+                    else:
+                        print(f"Using query: {query}\n")
+                        objects_endpoint = objects_endpoint.list(query=query, page=page, page_size=pagesize, sort=sort)
+                    print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort, truncate)
         else:
             if ref and not ref.isspace():
                 if "/" in ref:
@@ -693,7 +491,54 @@ def get(
                         sys.exit(1)
 
                     objects_endpoint = client.get_object_type(object_type, organization)
-                    print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort, truncate)
+                    if stream:
+                        if filter:
+                            all_objects = objects_endpoint.stream_filter(query, sort=sort)
+                        else:
+                            all_objects = objects_endpoint.list_all(query=query, sort=sort)
+
+                        if delete and not Confirm.ask(
+                            "Are you sure you want to delete these objects? This action cannot be undone."
+                        ):
+                            print("Aborting delete")
+                            exit(1)
+
+                        for obj in all_objects:
+                            try:
+                                print(f"Processing {obj.id}")
+                                if delete:
+                                    obj.delete()
+                                    print(f"Deleted {obj.id}")
+                                else:
+                                    # Get column list for the referenced object
+                                    if object_metadata["plural"] in DEFAULT_COLUMNS:
+                                        column_list = DEFAULT_COLUMNS[object_metadata["plural"]]
+                                    else:
+                                        column_list = DEFAULT_COLUMNS["default"]
+
+                                    # Print values for each column
+                                    values = []
+                                    for col in column_list:
+                                        try:
+                                            # Handle dot notation by splitting and traversing
+                                            parts = col.split('.')
+                                            value = obj
+                                            for part in parts:
+                                                value = getattr(value, part)
+                                            values.append(str(value))
+                                        except AttributeError:
+                                            values.append("")
+                                    print(" | ".join(values))
+                            except Exception as e:
+                                print(f"Error processing {obj.id}: {e}")
+                    else:
+                        if filter:
+                            print(f"Using filter: {query}\n")
+                            objects_endpoint = objects_endpoint.filter(query, page, pagesize, sort)
+                        else:
+                            print(f"Using query: {query}\n")
+                            objects_endpoint = objects_endpoint.list(query=query, page=page, page_size=pagesize, sort=sort)
+                        print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort, truncate)
             else:
                 organizations = client.organizations.list()
                 print("You need to provide the slug of the organization to list the resources.\n")
@@ -722,7 +567,6 @@ def get(
         # Don't exit with error code for empty lists or missing content
         if "content" not in str(e).lower() and "empty" not in str(e).lower():
             sys.exit(1)
-
 
 def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, query: str, page: int, pagesize: int,
                        sort: Optional[str], truncate: bool) -> None:
@@ -758,11 +602,7 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
             table.add_column(col, overflow="fold")
 
     try:
-        page_of_object_endpoints = objects_endpoint.list(
-            query=query, page=page, page_size=pagesize, sort=sort
-        )
-        # Handle empty list case
-        if not hasattr(page_of_object_endpoints, 'content'):
+        if not hasattr(objects_endpoint, 'content'):
             from rich.console import Console
             console = Console()
             console.print(table)
@@ -770,7 +610,7 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
             return
 
         # Get column values
-        for objects_endpoint in page_of_object_endpoints.content:
+        for objects_endpoint in objects_endpoint.content:
             row = []
             for col in column_list:
                 if col == "filename":
@@ -789,8 +629,12 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
                     row.append(assistant_name)
                 else:
                     try:
-                        value = str(getattr(objects_endpoint, col))
-                        row.append(value)
+                        # Handle dot notation by splitting the column name and traversing the object
+                        parts = col.split('.')
+                        value = objects_endpoint
+                        for part in parts:
+                            value = getattr(value, part)
+                        row.append(str(value))
                     except AttributeError:
                         row.append("")
             table.add_row(*row, style="yellow")
@@ -799,10 +643,10 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint: Any, q
 
         console = Console()
         console.print(table)
-        if hasattr(page_of_object_endpoints, 'number') and hasattr(page_of_object_endpoints, 'total_pages'):
+        if hasattr(objects_endpoint, 'number') and hasattr(objects_endpoint, 'total_pages'):
             console.print(
-                f"Page [bold]{page_of_object_endpoints.number + 1}[/bold] of [bold]{page_of_object_endpoints.total_pages}[/bold] "
-                f"(total of {page_of_object_endpoints.total_elements} objects)"
+                f"Page [bold]{objects_endpoint.number + 1}[/bold] of [bold]{objects_endpoint.total_pages}[/bold] "
+                f"(total of {objects_endpoint.total_elements} objects)"
             )
     except Exception as e:
         print("e:", e)
