@@ -1429,3 +1429,177 @@ def package(
             )
             print(f"docker build -t {repository}/{package_name}-container:{version} .")
             print(f"docker push {repository}/{package_name}-container:{version}")
+
+
+@cli.command()
+@click.argument("files", nargs=-1)
+@click.option("--org", help="Organization slug")
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@click.option("--format", help="Format of input if from stdin (json, yaml)")
+@click.option("--update/--no-update", default=False, help="Update existing components")
+@click.option("--version", help="Override version for component")
+@click.option("--overlay", help="JSON/YAML file to overlay metadata")
+@click.option("--slug", help="Override slug for component")
+@pass_info
+def deploy(
+        _: Info,
+        org: Optional[str],
+        files: list[str],
+        url: str,
+        token: str,
+        format: Optional[str] = None,
+        update: bool = False,
+        version: Optional[str] = None,
+        overlay: Optional[str] = None,
+        slug: Optional[str] = None,
+) -> None:
+    """Deploy a component to a Kodexa platform instance."""
+    """
+    Deploy a component to a Kodexa platform instance from a file or stdin
+    """
+
+    client = KodexaClient(access_token=token, url=url)
+
+    def deploy_obj(obj):
+        if "deployed" in obj:
+            del obj["deployed"]
+
+        overlay_obj = None
+
+        if overlay is not None:
+            print("Reading overlay")
+            if overlay.endswith("yaml") or overlay.endswith("yml"):
+                overlay_obj = yaml.safe_load(sys.stdin.read())
+            elif overlay.endswith("json"):
+                overlay_obj = json.loads(sys.stdin.read())
+            else:
+                raise Exception(
+                    "Unable to determine the format of the overlay file, must be .json or .yml/.yaml"
+                )
+
+        if isinstance(obj, list):
+            print(f"Found {len(obj)} components")
+            for o in obj:
+                if overlay_obj:
+                    o = merge(o, overlay_obj)
+
+                component = client.deserialize(o)
+                if org is not None:
+                    component.org_slug = org
+                print(
+                    f"Deploying component {component.slug}:{component.version} to {client.get_url()}"
+                )
+                from datetime import datetime
+
+                start = datetime.now()
+                component.deploy(update=update)
+                from datetime import datetime
+
+                print(
+                    f"Deployed at {datetime.now()}, took {datetime.now() - start} seconds"
+                )
+
+        else:
+            if overlay_obj:
+                obj = merge(obj, overlay_obj)
+
+            component = client.deserialize(obj)
+
+            if version is not None:
+                component.version = version
+            if slug is not None:
+                component.slug = slug
+            if org is not None:
+                component.org_slug = org
+            print(f"Deploying component {component.slug}:{component.version}")
+            log_details = component.deploy(update=update)
+            for log_detail in log_details:
+                print(log_detail)
+
+    if files is not None:
+        from rich.progress import track
+
+        for idx in track(
+                range(len(files)), description=f"Deploying {len(files)} files"
+        ):
+            obj = {}
+            file = files[idx]
+            with open(file, "r") as f:
+                if file.lower().endswith(".json"):
+                    obj.update(json.load(f))
+                elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
+                    obj.update(yaml.safe_load(f))
+                else:
+                    raise Exception("Unsupported file type")
+
+                deploy_obj(obj)
+    elif file is None:
+        print("Reading from stdin")
+        if format == "yaml" or format == "yml":
+            obj = yaml.safe_load(sys.stdin.read())
+        elif format == "json":
+            obj = json.loads(sys.stdin.read())
+        else:
+            raise Exception("You must provide a format if using stdin")
+
+        deploy_obj(obj)
+    else:
+        print("Reading from file", file)
+        with open(file, "r") as f:
+            if file.lower().endswith(".json"):
+                obj = json.load(f)
+            elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
+                obj = yaml.safe_load(f)
+            else:
+                raise Exception("Unsupported file type")
+
+            deploy_obj(obj)
+
+    print("Deployed :tada:")
+
+
+@cli.command()
+@click.argument("execution_id", required=True)
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@pass_info
+def logs(_: Info, execution_id: str, url: str, token: str) -> None:
+    """Get the logs for a specific execution."""
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        logs_data = client.executions.get(execution_id).logs
+        print(logs_data)
+    except Exception as e:
+        print(f"Error getting logs: {str(e)}")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("ref", required=True)
+@click.argument("output_file", required=False, default="model_implementation")
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@pass_info
+def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str) -> None:
+    """Download the implementation of a model store.
+
+    Args:
+        ref (str): Reference to the model store
+        output_file (str): Path to save the implementation
+        url (str): URL of the Kodexa server
+        token (str): Access token for authentication
+
+    Returns:
+        None
+    """
+    # We are going to download the implementation of the component
+    client = KodexaClient(url=url, access_token=token)
+    model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
+    model_store_endpoint.download_implementation(output_file)
