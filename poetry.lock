@@ -408,15 +408,15 @@ i18n = ["Babel (>=2.7)"]
 
 [[package]]
 name = "kodexa"
-version = "7.4.413508355193"
+version = "7.4.413550139188"
 description = "Python SDK for the Kodexa Platform"
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 markers = "python_version == \"3.11\" or python_version >= \"3.12\""
 files = [
-    {file = "kodexa-7.4.413508355193-py3-none-any.whl", hash = "sha256:ce8d13e0b76e678189cd7627bf05114818b309d738f5babf7326c7985c140b28"},
-    {file = "kodexa-7.4.413508355193.tar.gz", hash = "sha256:4162dbb78b1087b4608ba1ef6594b05701d0b7cf5f8ca11318e88fd0e7eba772"},
+    {file = "kodexa-7.4.413550139188-py3-none-any.whl", hash = "sha256:c34e68501a4047c783753ae7c35313da2c66d55b130d448c9090f9e86129d09a"},
+    {file = "kodexa-7.4.413550139188.tar.gz", hash = "sha256:a4b16e781fb55bfecfe9b84d18ecff2b18db4b1b3452a44b5043ef6d281380f2"},
 ]
 
 [package.dependencies]
@@ -1532,15 +1532,15 @@ files = [
 
 [[package]]
 name = "setuptools"
-version = "75.8.0"
+version = "75.8.1"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 markers = "python_version == \"3.11\" or python_version >= \"3.12\""
 files = [
-    {file = "setuptools-75.8.0-py3-none-any.whl", hash = "sha256:e3982f444617239225d675215d51f6ba05f845d4eec313da4418fdbb56fb27e3"},
-    {file = "setuptools-75.8.0.tar.gz", hash = "sha256:c5afc8f407c626b8313a86e10311dd3f661c6cd9c09d4bf8c15c0e11f9f2b0e6"},
+    {file = "setuptools-75.8.1-py3-none-any.whl", hash = "sha256:3bc32c0b84c643299ca94e77f834730f126efd621de0cc1de64119e0e17dab1f"},
+    {file = "setuptools-75.8.1.tar.gz", hash = "sha256:65fb779a8f28895242923582eadca2337285f0891c2c9e160754df917c3d2530"},
 ]
 
 [package.extras]

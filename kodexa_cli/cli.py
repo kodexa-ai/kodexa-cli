@@ -143,6 +143,7 @@ def _validate_profile(profile: str) -> bool:
         profiles = KodexaPlatform.list_profiles()
         return profile in profiles
     except Exception:
+        KodexaPlatform.clear_profile()
         return False
 
 
