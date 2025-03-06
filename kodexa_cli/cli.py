@@ -121,11 +121,6 @@ def print_available_object_types():
 def get_path():
     """
     :return: the path of this module file
-
-    Args:
-
-    Returns:
-
     """
     return os.path.abspath(__file__)
 
@@ -431,7 +426,7 @@ def get(
                         all_objects = objects_endpoint.stream(query=query, sort=sort)
 
                     if delete and not Confirm.ask(
-                        "Are you sure you want to delete these objects? This action cannot be undone."
+                            "Are you sure you want to delete these objects? This action cannot be undone."
                     ):
                         print("Aborting delete")
                         exit(1)
@@ -481,7 +476,7 @@ def get(
                             all_objects = objects_endpoint.stream(query=query, sort=sort)
 
                         if delete and not Confirm.ask(
-                            "Are you sure you want to delete these objects? This action cannot be undone."
+                                "Are you sure you want to delete these objects? This action cannot be undone."
                         ):
                             print("Aborting delete")
                             exit(1)
@@ -520,7 +515,8 @@ def get(
                             objects_endpoint = objects_endpoint.filter(query, page, pagesize, sort)
                         else:
                             print(f"Using query: {query}\n")
-                            objects_endpoint = objects_endpoint.list(query=query, page=page, page_size=pagesize, sort=sort)
+                            objects_endpoint = objects_endpoint.list(query=query, page=page, page_size=pagesize,
+                                                                     sort=sort)
                         print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort, truncate)
             else:
                 organizations = client.organizations.list()
@@ -551,7 +547,9 @@ def get(
         if "content" not in str(e).lower() and "empty" not in str(e).lower():
             sys.exit(1)
 
-def print_object_table(object_metadata: dict[str, Any], objects_endpoint_page: Any, query: str, page: int, pagesize: int,
+
+def print_object_table(object_metadata: dict[str, Any], objects_endpoint_page: Any, query: str, page: int,
+                       pagesize: int,
                        sort: Optional[str], truncate: bool) -> None:
     """Print the output of the list in a table form.
 
@@ -1073,13 +1071,6 @@ def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str)
 def login(_: Info, url: Optional[str] = None, token: Optional[str] = None) -> None:
     """Log into a Kodexa platform instance.
 
-    Args:
-        url (Optional[str]): URL of the Kodexa server (default: platform.kodexa.ai)
-        token (Optional[str]): Access token for authentication
-
-    Returns:
-        None
-
     After login, the access token is stored and used for all subsequent API calls.
     If arguments are not provided, they will be prompted for interactively.
     Use the global --profile option to specify which profile to create or update.
@@ -1176,7 +1167,6 @@ def package(
         strip_version_build: bool = False,
         update_resource_versions: bool = True,
 ) -> None:
-
     if files is None or len(files) == 0:
         files = ["kodexa.yml"]
 
@@ -1394,6 +1384,64 @@ def package(
 
 
 @cli.command()
+@click.argument("ref", required=True)
+@click.argument("paths", required=True, nargs=-1)
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--threads", default=5, help="Number of threads to use")
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@click.option("--external-data/--no-external-data", default=False,
+              help="Look for a .json file that has the same name as the upload and attach this as external data")
+@pass_info
+def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int,
+           external_data: bool = False) -> None:
+    """Upload a file to the Kodexa platform.
+    """
+
+    client = KodexaClient(url=url, access_token=token)
+    document_store = client.get_object_by_ref("store", ref)
+
+    from kodexa.platform.client import DocumentStoreEndpoint
+
+    print(f"Uploading {len(paths)} files to {ref}\n")
+    if isinstance(document_store, DocumentStoreEndpoint):
+        from rich.progress import track
+
+        def upload_file(path, external_data):
+            try:
+                if external_data:
+                    external_data_path = f"{os.path.splitext(path)[0]}.json"
+                    if os.path.exists(external_data_path):
+                        with open(external_data_path, "r") as f:
+                            external_data = json.load(f)
+                            document_store.upload_file(path, external_data=external_data)
+                            return f"Successfully uploaded {path} with external data {json.dumps(external_data)}"
+                    else:
+                        return f"External data file not found for {path}"
+                else:
+                    document_store.upload_file(path)
+                    return f"Successfully uploaded {path}"
+            except Exception as e:
+                return f"Error uploading {path}: {e}"
+
+        from concurrent.futures import ThreadPoolExecutor
+
+        # Using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=threads) as executor:
+            upload_args = [(path, external_data) for path in paths]
+            for result in track(
+                    executor.map(lambda args: upload_file(*args), upload_args),
+                    total=len(paths),
+                    description="Uploading files",
+            ):
+                print(result)
+        print("Upload complete :tada:")
+    else:
+        print(f"{ref} is not a document store")
+
+
+@cli.command()
 @click.argument("files", nargs=-1)
 @click.option("--org", help="Organization slug")
 @click.option(
@@ -1551,15 +1599,6 @@ def logs(_: Info, execution_id: str, url: str, token: str) -> None:
 @pass_info
 def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str) -> None:
     """Download the implementation of a model store.
-
-    Args:
-        ref (str): Reference to the model store
-        output_file (str): Path to save the implementation
-        url (str): URL of the Kodexa server
-        token (str): Access token for authentication
-
-    Returns:
-        None
     """
     # We are going to download the implementation of the component
     client = KodexaClient(url=url, access_token=token)
