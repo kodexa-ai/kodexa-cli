@@ -178,12 +178,6 @@ def get_current_access_token():
 @contextmanager
 def set_directory(path: Path):
     """Sets the cwd within the context
-
-    Args:
-        path (Path): The path to the cwd
-
-    Yields:
-        None
     """
 
     origin = Path().absolute()
