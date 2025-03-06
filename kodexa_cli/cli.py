@@ -398,24 +398,6 @@ def get(
         delete: bool = False
 ) -> None:
     """List instances of a component or entity type.
-
-    Args:
-        object_type (Optional[str]): Type of object to list (component, document, execution, etc.)
-        ref (Optional[str]): Reference to the specific object
-        url (str): URL of the Kodexa server
-        token (str): Access token for authentication
-        query (str): Query string to filter results
-        filter (bool): Use filter syntax instead of query syntax
-        format (Optional[str]): Output format (json, yaml)
-        page (int): Page number for pagination (default: 1)
-        pagesize (int): Number of items per page (default: 10)
-        sort (Optional[str]): Sort field and direction (e.g., "startDate:desc")
-        truncate (bool): Whether to truncate output (default: True)
-        stream (bool): Whether to stream results (default: False)
-        delete (bool): Whether to delete streamed objects (default: False)
-
-    Returns:
-        None
     """
     if not object_type:
         print_available_object_types()
@@ -727,27 +709,6 @@ def query(
         watch: Optional[int] = None,
 ) -> None:
     """Query and manipulate documents in a document store.
-
-    Args:
-        query (list[str]): Query terms to filter documents
-        ref (str): Reference to the document store
-        url (str): URL of the Kodexa server
-        token (str): Access token for authentication
-        download (bool): Download KDDB files for matching documents
-        download_native (bool): Download native files for matching documents
-        page (int): Page number for pagination
-        pagesize (int): Number of items per page
-        sort (None): Sort field and direction
-        filter (None): Use filter syntax instead of query syntax
-        reprocess (Optional[str]): Assistant ID to reprocess documents with
-        delete (bool): Delete matching documents (default: False)
-        stream (bool): Stream results instead of paginating (default: False)
-        threads (int): Number of threads for parallel processing (default: 5)
-        limit (Optional[int]): Maximum number of results when streaming
-        watch (Optional[int]): Interval in seconds to watch for changes
-
-    Returns:
-        None
     """
     client = KodexaClient(url=url, access_token=token)
     from kodexa.platform.client import DocumentStoreEndpoint
