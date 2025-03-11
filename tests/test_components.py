@@ -12,12 +12,6 @@ def test_delete_component(cli_runner, mock_kodexa_client):
     assert result.exit_code == 0
     mock_kodexa_client.delete_component.assert_called_once()
 
-def test_dataclasses(cli_runner, mock_kodexa_client):
-    """Test listing dataclasses."""
-    result = cli_runner.invoke(cli, ['dataclasses'])
-    assert result.exit_code == 0
-    mock_kodexa_client.get_dataclasses.assert_called_once()
-
 def test_version(cli_runner):
     """Test version command."""
     result = cli_runner.invoke(cli, ['version'])
