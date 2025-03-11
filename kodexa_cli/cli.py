@@ -1046,14 +1046,23 @@ def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
 @click.option("--output-path", default=".", help="The path to output the dataclasses")
 @click.option("--output-file", default="dataclasses.py", help="The file to output the dataclasses to")
 def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str) -> None:
-    """Generate Python dataclasses from a taxonomy file."""
-    try:
-        client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
-        client.get_dataclasses()
-        print("Dataclasses retrieved successfully")
-    except Exception as e:
-        print(f"Error getting dataclasses: {str(e)}")
-        sys.exit(1)
+    """Generate Python dataclasses from a taxonomy file.
+    """
+    if taxonomy_file is None:
+        print("You must provide a taxonomy file")
+        exit(1)
+
+    with open(taxonomy_file, "r") as f:
+
+        if taxonomy_file.endswith(".json"):
+            taxonomy = json.load(f)
+        else:
+            taxonomy = yaml.safe_load(f)
+
+    taxonomy = Taxonomy(**taxonomy)
+
+    from kodexa.dataclasses import build_llm_data_classes_for_taxonomy
+    build_llm_data_classes_for_taxonomy(taxonomy, output_path, output_file)
 
 
 @cli.command()
