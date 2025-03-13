@@ -715,12 +715,12 @@ def query(
                 if filter:
                     print(f"Streaming filter: {query_str}\n")
                     page_of_document_families = document_store.stream_filter(
-                        query_str, sort, limit
+                        query_str, sort, limit, threads
                     )
                 else:
                     print(f"Streaming query: {query_str}\n")
                     page_of_document_families = document_store.stream_query(
-                        query_str, sort, limit
+                        query_str, sort, limit, threads
                     )
             else:
                 if filter:
