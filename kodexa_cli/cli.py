@@ -450,12 +450,19 @@ def get(
                 if output_file and save_to_file(object_dict, format):
                     GLOBAL_IGNORE_COMPLETE = True
                     return
+                # Check if data is a pydantic object and convert it to dict if needed
+                if hasattr(object_instance, 'model_dump'):
+                    data_to_print = object_instance.model_dump(by_alias=True)
+                elif hasattr(object_instance, 'dict'):  # For older pydantic versions
+                    data_to_print = object_instance.dict(by_alias=True)
+                else:
+                    data_to_print = object_dict
                 
                 if format == "json":
-                    print(json.dumps(object_dict, indent=4))
+                    print(json.dumps(data_to_print, indent=4))
                     GLOBAL_IGNORE_COMPLETE = True
                 elif format == "yaml":
-                    print(yaml.dump(object_dict, indent=4))
+                    print(yaml.dump(data_to_print, indent=4))
                     GLOBAL_IGNORE_COMPLETE = True
             else:
                 if stream:
