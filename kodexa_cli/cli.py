@@ -142,6 +142,25 @@ def _validate_profile(profile: str) -> bool:
     except Exception:
         KodexaPlatform.clear_profile()
         return False
+    
+def safe_exception_handler(func):
+    """Decorator to handle exceptions with better_exceptions.
+    
+    Args:
+        func: The function to wrap
+        
+    Returns:
+        Wrapped function with exception handling
+    """
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            better_exceptions.print_exc()
+            print(f"\n:fire: [red][bold]Failed[/bold]: {e}[/red]")
+            sys.exit(1)
+    return wrapper
+
 
 
 def get_current_kodexa_profile() -> str:
@@ -1744,21 +1763,3 @@ def pydantic_to_dict(obj: Any) -> Any:
     
     # Return primitive types unchanged
     return obj
-
-def safe_exception_handler(func):
-    """Decorator to handle exceptions with better_exceptions.
-    
-    Args:
-        func: The function to wrap
-        
-    Returns:
-        Wrapped function with exception handling
-    """
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            better_exceptions.print_exc()
-            print(f"\n:fire: [red][bold]Failed[/bold]: {e}[/red]")
-            sys.exit(1)
-    return wrapper
