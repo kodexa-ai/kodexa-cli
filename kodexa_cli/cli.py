@@ -685,7 +685,7 @@ def get(
                 sys.exit(1)
 
     except Exception as e:
-        print(f"Error getting objects: {str(e)}")
+        better_exceptions.print_exc()
 
 
         # Don't exit with error code for empty lists or missing content
