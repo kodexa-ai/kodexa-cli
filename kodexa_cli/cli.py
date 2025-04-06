@@ -418,10 +418,18 @@ def get(
         
         # Write data to file in appropriate format
         with open(file_path, 'w') as f:
+            # Check if data is a pydantic object and convert it to dict if needed
+            if hasattr(data, 'model_dump'):
+                data_to_write = data.model_dump(by_alias=True)
+            elif hasattr(data, 'dict'):  # For older pydantic versions
+                data_to_write = data.dict(by_alias=True)
+            else:
+                data_to_write = data
+                
             if output_format == 'json':
-                json.dump(data, f, indent=4)
+                json.dump(data_to_write, f, indent=4)
             else:  # yaml
-                yaml.dump(data, f, indent=4)
+                yaml.dump(data_to_write, f, indent=4)
         
         print(f"Output written to {file_path}")
         return True
