@@ -683,10 +683,13 @@ def get(
                         f"\nShowing {len(organizations.content)} of {organizations.total_elements} total organizations.")
 
                 sys.exit(1)
-
     except Exception as e:
-        better_exceptions.print_exc()
-
+        # Print the exception using Better Exceptions
+        import better_exceptions
+        better_exceptions.hook()
+        print(f"Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
         # Don't exit with error code for empty lists or missing content
         if "content" not in str(e).lower() and "empty" not in str(e).lower():
