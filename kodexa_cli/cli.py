@@ -33,6 +33,8 @@ from kodexa.platform.client import (
 from rich import print
 from rich.prompt import Confirm
 import concurrent.futures
+import better_exceptions
+better_exceptions.hook()
 
 logging.root.addHandler(logging.StreamHandler(sys.stdout))
 
@@ -684,6 +686,8 @@ def get(
 
     except Exception as e:
         print(f"Error getting objects: {str(e)}")
+
+
         # Don't exit with error code for empty lists or missing content
         if "content" not in str(e).lower() and "empty" not in str(e).lower():
             sys.exit(1)
