@@ -542,10 +542,22 @@ def get(
                         return
                     
                     if format == "json":
-                        print(json.dumps(object_dict, indent=4))
+                        # Handle both regular dict and pydantic objects
+                        if hasattr(object_instance, 'model_dump'):
+                            print(json.dumps(object_instance.model_dump(by_alias=True), indent=4))
+                        elif hasattr(object_instance, 'dict'):  # For older pydantic versions
+                            print(json.dumps(object_instance.dict(by_alias=True), indent=4))
+                        else:
+                            print(json.dumps(object_dict, indent=4))
                         GLOBAL_IGNORE_COMPLETE = True
                     elif format == "yaml" or not format:
-                        print(yaml.dump(object_dict, indent=4))
+                        # Handle both regular dict and pydantic objects
+                        if hasattr(object_instance, 'model_dump'):
+                            print(yaml.dump(object_instance.model_dump(by_alias=True), indent=4))
+                        elif hasattr(object_instance, 'dict'):  # For older pydantic versions
+                            print(yaml.dump(object_instance.dict(by_alias=True), indent=4))
+                        else:
+                            print(yaml.dump(object_dict, indent=4))
                         GLOBAL_IGNORE_COMPLETE = True
                 else:
                     organization = client.organizations.find_by_slug(ref)
