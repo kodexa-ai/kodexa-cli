@@ -369,6 +369,8 @@ def safe_entry_point() -> None:
 @click.option("--truncate/--no-truncate", default=True, help="Truncate the output or not")
 @click.option("--stream/--no-stream", default=False, help="Stream results instead of using table output")
 @click.option("--delete/--no-delete", default=False, help="Delete streamed objects")
+@click.option("--output-path", default=None, help="Output directory to save the results")
+@click.option("--output-file", default=None, help="Output file to save the results")
 @pass_info
 def get(
         _: Info,
@@ -384,13 +386,45 @@ def get(
         sort: Optional[str] = None,
         truncate: bool = True,
         stream: bool = False,
-        delete: bool = False
+        delete: bool = False,
+        output_path: Optional[str] = None,
+        output_file: Optional[str] = None
 ) -> None:
     """List instances of a component or entity type.
     """
     if not object_type:
         print_available_object_types()
         return
+
+    # Handle file output setup
+    def save_to_file(data, output_format=None):
+        if output_file is None:
+            return False
+        
+        # Determine the full file path
+        file_path = output_file
+        if output_path:
+            os.makedirs(output_path, exist_ok=True)
+            file_path = os.path.join(output_path, output_file)
+        
+        # Determine format based on file extension if not specified
+        if output_format is None:
+            if file_path.lower().endswith('.json'):
+                output_format = 'json'
+            elif file_path.lower().endswith(('.yaml', '.yml')):
+                output_format = 'yaml'
+            else:
+                output_format = format or 'json'  # Default to json if no extension hint
+        
+        # Write data to file in appropriate format
+        with open(file_path, 'w') as f:
+            if output_format == 'json':
+                json.dump(data, f, indent=4)
+            else:  # yaml
+                yaml.dump(data, f, indent=4)
+        
+        print(f"Output written to {file_path}")
+        return True
 
     try:
         client = KodexaClient(url=url, access_token=token)
@@ -402,12 +436,17 @@ def get(
             objects_endpoint = client.get_object_type(object_type)
             if ref and not ref.isspace():
                 object_instance = objects_endpoint.get(ref)
-
+                object_dict = object_instance.model_dump(by_alias=True)
+                
+                # Save to file if output_file is specified
+                if output_file and save_to_file(object_dict, format):
+                    GLOBAL_IGNORE_COMPLETE = True
+                    return
+                
                 if format == "json":
-                    print(json.dumps(object_instance.model_dump(by_alias=True), indent=4))
+                    print(json.dumps(object_dict, indent=4))
                     GLOBAL_IGNORE_COMPLETE = True
                 elif format == "yaml":
-                    object_dict = object_instance.model_dump(by_alias=True)
                     print(yaml.dump(object_dict, indent=4))
                     GLOBAL_IGNORE_COMPLETE = True
             else:
@@ -425,34 +464,72 @@ def get(
                         print("Aborting delete")
                         exit(1)
 
-                    for obj in all_objects:
-                        try:
-                            print(f"Processing {obj.id}")
-                            if delete:
-                                obj.delete()
-                                print(f"Deleted {obj.id}")
-                            else:
-                                print(obj)
-                        except Exception as e:
-                            print(f"Error processing {obj.id}: {e}")
+                    # Collect objects for file output if needed
+                    collected_objects = []
+                    if output_file:
+                        for obj in all_objects:
+                            try:
+                                if delete:
+                                    obj.delete()
+                                    print(f"Deleted {obj.id}")
+                                else:
+                                    collected_objects.append(obj.model_dump(by_alias=True))
+                                    print(f"Processing {obj.id}")
+                            except Exception as e:
+                                print(f"Error processing {obj.id}: {e}")
+                        
+                        if collected_objects and save_to_file(collected_objects, format):
+                            GLOBAL_IGNORE_COMPLETE = True
+                            return
+                    else:
+                        for obj in all_objects:
+                            try:
+                                print(f"Processing {obj.id}")
+                                if delete:
+                                    obj.delete()
+                                    print(f"Deleted {obj.id}")
+                                else:
+                                    print(obj)
+                            except Exception as e:
+                                print(f"Error processing {obj.id}: {e}")
                 else:
                     if filter:
                         print(f"Using filter: {query}\n")
-                        objects_endpoint = objects_endpoint.list("*", page, pagesize, sort, filters=[query])
+                        objects_endpoint_page = objects_endpoint.list("*", page, pagesize, sort, filters=[query])
                     else:
                         print(f"Using query: {query}\n")
-                        objects_endpoint = objects_endpoint.list(query=query, page=page, page_size=pagesize, sort=sort)
-                    print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort, truncate)
+                        objects_endpoint_page = objects_endpoint.list(query=query, page=page, page_size=pagesize, sort=sort)
+                    
+                    # Save to file if output_file is specified
+                    if output_file and hasattr(objects_endpoint_page, 'content'):
+                        collection_data = [obj.model_dump(by_alias=True) for obj in objects_endpoint_page.content]
+                        page_data = {
+                            "content": collection_data,
+                            "page": objects_endpoint_page.number,
+                            "pageSize": objects_endpoint_page.size,
+                            "totalPages": objects_endpoint_page.total_pages,
+                            "totalElements": objects_endpoint_page.total_elements
+                        }
+                        if save_to_file(page_data, format):
+                            GLOBAL_IGNORE_COMPLETE = True
+                            return
+                    
+                    print_object_table(object_metadata, objects_endpoint_page, query, page, pagesize, sort, truncate)
         else:
             if ref and not ref.isspace():
                 if "/" in ref:
                     object_instance = client.get_object_by_ref(object_metadata["plural"], ref)
-
+                    object_dict = object_instance.model_dump(by_alias=True)
+                    
+                    # Save to file if output_file is specified
+                    if output_file and save_to_file(object_dict, format):
+                        GLOBAL_IGNORE_COMPLETE = True
+                        return
+                    
                     if format == "json":
-                        print(json.dumps(object_instance.model_dump(by_alias=True), indent=4))
+                        print(json.dumps(object_dict, indent=4))
                         GLOBAL_IGNORE_COMPLETE = True
                     elif format == "yaml" or not format:
-                        object_dict = object_instance.model_dump(by_alias=True)
                         print(yaml.dump(object_dict, indent=4))
                         GLOBAL_IGNORE_COMPLETE = True
                 else:
@@ -475,43 +552,76 @@ def get(
                             print("Aborting delete")
                             exit(1)
 
-                        for obj in all_objects:
-                            try:
-                                print(f"Processing {obj.id}")
-                                if delete:
-                                    obj.delete()
-                                    print(f"Deleted {obj.id}")
-                                else:
-                                    # Get column list for the referenced object
-                                    if object_metadata["plural"] in DEFAULT_COLUMNS:
-                                        column_list = DEFAULT_COLUMNS[object_metadata["plural"]]
+                        # Collect objects for file output if needed
+                        collected_objects = []
+                        if output_file:
+                            for obj in all_objects:
+                                try:
+                                    if delete:
+                                        obj.delete()
+                                        print(f"Deleted {obj.id}")
                                     else:
-                                        column_list = DEFAULT_COLUMNS["default"]
+                                        collected_objects.append(obj.model_dump(by_alias=True))
+                                        print(f"Processing {obj.id}")
+                                except Exception as e:
+                                    print(f"Error processing {obj.id}: {e}")
+                            
+                            if collected_objects and save_to_file(collected_objects, format):
+                                GLOBAL_IGNORE_COMPLETE = True
+                                return
+                        else:
+                            for obj in all_objects:
+                                try:
+                                    print(f"Processing {obj.id}")
+                                    if delete:
+                                        obj.delete()
+                                        print(f"Deleted {obj.id}")
+                                    else:
+                                        # Get column list for the referenced object
+                                        if object_metadata["plural"] in DEFAULT_COLUMNS:
+                                            column_list = DEFAULT_COLUMNS[object_metadata["plural"]]
+                                        else:
+                                            column_list = DEFAULT_COLUMNS["default"]
 
-                                    # Print values for each column
-                                    values = []
-                                    for col in column_list:
-                                        try:
-                                            # Handle dot notation by splitting and traversing
-                                            parts = col.split('.')
-                                            value = obj
-                                            for part in parts:
-                                                value = getattr(value, part)
-                                            values.append(str(value))
-                                        except AttributeError:
-                                            values.append("")
-                                    print(" | ".join(values))
-                            except Exception as e:
-                                print(f"Error processing {obj.id}: {e}")
+                                        # Print values for each column
+                                        values = []
+                                        for col in column_list:
+                                            try:
+                                                # Handle dot notation by splitting and traversing
+                                                parts = col.split('.')
+                                                value = obj
+                                                for part in parts:
+                                                    value = getattr(value, part)
+                                                values.append(str(value))
+                                            except AttributeError:
+                                                values.append("")
+                                        print(" | ".join(values))
+                                except Exception as e:
+                                    print(f"Error processing {obj.id}: {e}")
                     else:
                         if filter:
                             print(f"Using filter: {query}\n")
-                            objects_endpoint = objects_endpoint.filter(query, page, pagesize, sort)
+                            objects_endpoint_page = objects_endpoint.filter(query, page, pagesize, sort)
                         else:
                             print(f"Using query: {query}\n")
-                            objects_endpoint = objects_endpoint.list(query=query, page=page, page_size=pagesize,
+                            objects_endpoint_page = objects_endpoint.list(query=query, page=page, page_size=pagesize,
                                                                      sort=sort)
-                        print_object_table(object_metadata, objects_endpoint, query, page, pagesize, sort, truncate)
+                        
+                        # Save to file if output_file is specified
+                        if output_file and hasattr(objects_endpoint_page, 'content'):
+                            collection_data = [obj.model_dump(by_alias=True) for obj in objects_endpoint_page.content]
+                            page_data = {
+                                "content": collection_data,
+                                "page": objects_endpoint_page.number,
+                                "pageSize": objects_endpoint_page.size,
+                                "totalPages": objects_endpoint_page.total_pages,
+                                "totalElements": objects_endpoint_page.total_elements
+                            }
+                            if save_to_file(page_data, format):
+                                GLOBAL_IGNORE_COMPLETE = True
+                                return
+                        
+                        print_object_table(object_metadata, objects_endpoint_page, query, page, pagesize, sort, truncate)
             else:
                 organizations = client.organizations.list()
                 print("You need to provide the slug of the organization to list the resources.\n")
@@ -973,7 +1083,7 @@ def delete(_: Info, ref: str, url: str, token: str, yes: bool) -> None:
     """Delete a resource from the Kodexa platform."""
     try:
         client = KodexaClient(url=url, access_token=token)
-        client.delete_component(ref)
+        client.get_object_by_ref(ref).delete()
         print(f"Component {ref} deleted successfully")
         return
     except Exception as e:
@@ -1044,7 +1154,7 @@ def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
 @pass_info
 @click.argument("taxonomy_file", required=False)
 @click.option("--output-path", default=".", help="The path to output the dataclasses")
-@click.option("--output-file", default="dataclasses.py", help="The file to output the dataclasses to")
+@click.option("--output-file", default="data_classes.py", help="The file to output the dataclasses to")
 def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str) -> None:
     """Generate Python dataclasses from a taxonomy file.
     """
