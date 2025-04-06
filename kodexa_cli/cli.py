@@ -459,9 +459,19 @@ def get(
                     data_to_print = object_dict
                 
                 if format == "json":
+                    # Check if data is a pydantic object and convert it to dict if needed
+                    if hasattr(data_to_print, 'model_dump'):
+                        data_to_print = data_to_print.model_dump(by_alias=True)
+                    elif hasattr(data_to_print, 'dict'):  # For older pydantic versions
+                        data_to_print = data_to_print.dict(by_alias=True)
                     print(json.dumps(data_to_print, indent=4))
                     GLOBAL_IGNORE_COMPLETE = True
                 elif format == "yaml":
+                    # Check if data is a pydantic object and convert it to dict if needed
+                    if hasattr(data_to_print, 'model_dump'):
+                        data_to_print = data_to_print.model_dump(by_alias=True)
+                    elif hasattr(data_to_print, 'dict'):  # For older pydantic versions
+                        data_to_print = data_to_print.dict(by_alias=True)
                     print(yaml.dump(data_to_print, indent=4))
                     GLOBAL_IGNORE_COMPLETE = True
             else:
