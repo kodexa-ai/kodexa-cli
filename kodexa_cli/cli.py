@@ -342,7 +342,6 @@ def safe_entry_point() -> None:
     except Exception as e:
         # If an exception occurs, mark success as False and print the exception
         success = False
-        better_exceptions.print_exc()
         print(f"\n:fire: [red][bold]Failed[/bold]: {e}[/red]")
     finally:
         # If the execution was successful
@@ -375,7 +374,6 @@ def safe_entry_point() -> None:
 @click.option("--output-path", default=None, help="Output directory to save the results")
 @click.option("--output-file", default=None, help="Output file to save the results")
 @pass_info
-@safe_exception_handler
 def get(
         _: Info,
         object_type: Optional[str] = None,
@@ -422,8 +420,13 @@ def get(
         
         # Write data to file in appropriate format
         with open(file_path, 'w') as f:
-            # Convert pydantic objects to dict using the utility function
-            data_to_write = pydantic_to_dict(data)
+            # Check if data is a pydantic object and convert it to dict if needed
+            if hasattr(data, 'model_dump'):
+                data_to_write = data.model_dump(by_alias=True)
+            elif hasattr(data, 'dict'):  # For older pydantic versions
+                data_to_write = data.dict(by_alias=True)
+            else:
+                data_to_write = data
                 
             if output_format == 'json':
                 json.dump(data_to_write, f, indent=4)
@@ -433,145 +436,53 @@ def get(
         print(f"Output written to {file_path}")
         return True
 
-    client = KodexaClient(url=url, access_token=token)
-    from kodexa.platform.client import resolve_object_type
-    object_name, object_metadata = resolve_object_type(object_type)
-    global GLOBAL_IGNORE_COMPLETE
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        from kodexa.platform.client import resolve_object_type
+        object_name, object_metadata = resolve_object_type(object_type)
+        global GLOBAL_IGNORE_COMPLETE
 
-    if "global" in object_metadata and object_metadata["global"]:
-        objects_endpoint = client.get_object_type(object_type)
-        if ref and not ref.isspace():
-            object_instance = objects_endpoint.get(ref)
-            object_dict = pydantic_to_dict(object_instance)
-            
-            # Save to file if output_file is specified
-            if output_file and save_to_file(object_dict, format):
-                GLOBAL_IGNORE_COMPLETE = True
-                return
-            
-            # Use the utility function for output formatting
-            data_to_print = pydantic_to_dict(object_instance)
-            
-            if format == "json":
-                print(json.dumps(data_to_print, indent=4))
-                GLOBAL_IGNORE_COMPLETE = True
-            elif format == "yaml":
-                print(yaml.dump(data_to_print, indent=4))
-                GLOBAL_IGNORE_COMPLETE = True
-        else:
-            if stream:
-                if filter:
-                    print(f"Streaming filter: {query}\n")
-                    all_objects = objects_endpoint.stream(filters=[query], sort=sort)
-                else:
-                    print(f"Streaming query: {query}\n")
-                    all_objects = objects_endpoint.stream(query=query, sort=sort)
-
-                if delete and not Confirm.ask(
-                        "Are you sure you want to delete these objects? This action cannot be undone."
-                ):
-                    print("Aborting delete")
-                    exit(1)
-
-                # Collect objects for file output if needed
-                collected_objects = []
-                if output_file:
-                    for obj in all_objects:
-                        try:
-                            if delete:
-                                obj.delete()
-                                print(f"Deleted {obj.id}")
-                            else:
-                                collected_objects.append(pydantic_to_dict(obj))
-                                print(f"Processing {obj.id}")
-                        except Exception as e:
-                            print(f"Error processing {obj.id}: {e}")
-                    
-                    if collected_objects and save_to_file(collected_objects, format):
-                        GLOBAL_IGNORE_COMPLETE = True
-                        return
-                else:
-                    for obj in all_objects:
-                        try:
-                            print(f"Processing {obj.id}")
-                            if delete:
-                                obj.delete()
-                                print(f"Deleted {obj.id}")
-                            else:
-                                # Get column list for the referenced object
-                                if object_metadata["plural"] in DEFAULT_COLUMNS:
-                                    column_list = DEFAULT_COLUMNS[object_metadata["plural"]]
-                                else:
-                                    column_list = DEFAULT_COLUMNS["default"]
-
-                                # Print values for each column
-                                values = []
-                                for col in column_list:
-                                    try:
-                                        # Handle dot notation by splitting and traversing
-                                        parts = col.split('.')
-                                        value = obj
-                                        for part in parts:
-                                            value = getattr(value, part)
-                                        values.append(str(value))
-                                    except AttributeError:
-                                        values.append("")
-                                print(" | ".join(values))
-                        except Exception as e:
-                            print(f"Error processing {obj.id}: {e}")
-            else:
-                if filter:
-                    print(f"Using filter: {query}\n")
-                    objects_endpoint_page = objects_endpoint.list("*", page, pagesize, sort, filters=[query])
-                else:
-                    print(f"Using query: {query}\n")
-                    objects_endpoint_page = objects_endpoint.list(query=query, page=page, page_size=pagesize,
-                                                                 sort=sort)
-                
-                # Save to file if output_file is specified
-                if output_file and hasattr(objects_endpoint_page, 'content'):
-                    collection_data = [pydantic_to_dict(obj) for obj in objects_endpoint_page.content]
-                    page_data = {
-                        "content": collection_data,
-                        "page": objects_endpoint_page.number,
-                        "pageSize": objects_endpoint_page.size,
-                        "totalPages": objects_endpoint_page.total_pages,
-                        "totalElements": objects_endpoint_page.total_elements
-                    }
-                    if save_to_file(page_data, format):
-                        GLOBAL_IGNORE_COMPLETE = True
-                        return
-                
-                print_object_table(object_metadata, objects_endpoint_page, query, page, pagesize, sort, truncate)
-    else:
-        if ref and not ref.isspace():
-            if "/" in ref:
-                object_instance = client.get_object_by_ref(object_metadata["plural"], ref)
-                object_dict = pydantic_to_dict(object_instance)
+        if "global" in object_metadata and object_metadata["global"]:
+            objects_endpoint = client.get_object_type(object_type)
+            if ref and not ref.isspace():
+                object_instance = objects_endpoint.get(ref)
+                object_dict = object_instance.model_dump(by_alias=True)
                 
                 # Save to file if output_file is specified
                 if output_file and save_to_file(object_dict, format):
                     GLOBAL_IGNORE_COMPLETE = True
                     return
+                # Check if data is a pydantic object and convert it to dict if needed
+                if hasattr(object_instance, 'model_dump'):
+                    data_to_print = object_instance.model_dump(by_alias=True)
+                elif hasattr(object_instance, 'dict'):  # For older pydantic versions
+                    data_to_print = object_instance.dict(by_alias=True)
+                else:
+                    data_to_print = object_dict
                 
                 if format == "json":
-                    print(json.dumps(pydantic_to_dict(object_instance), indent=4))
+                    # Check if data is a pydantic object and convert it to dict if needed
+                    if hasattr(data_to_print, 'model_dump'):
+                        data_to_print = data_to_print.model_dump(by_alias=True)
+                    elif hasattr(data_to_print, 'dict'):  # For older pydantic versions
+                        data_to_print = data_to_print.dict(by_alias=True)
+                    print(json.dumps(data_to_print, indent=4))
                     GLOBAL_IGNORE_COMPLETE = True
-                elif format == "yaml" or not format:
-                    print(yaml.dump(pydantic_to_dict(object_instance), indent=4))
+                elif format == "yaml":
+                    # Check if data is a pydantic object and convert it to dict if needed
+                    if hasattr(data_to_print, 'model_dump'):
+                        data_to_print = data_to_print.model_dump(by_alias=True)
+                    elif hasattr(data_to_print, 'dict'):  # For older pydantic versions
+                        data_to_print = data_to_print.dict(by_alias=True)
+                    print(yaml.dump(data_to_print, indent=4))
                     GLOBAL_IGNORE_COMPLETE = True
             else:
-                organization = client.organizations.find_by_slug(ref)
-
-                if organization is None:
-                    print(f"Could not find organization with slug {ref}")
-                    sys.exit(1)
-
-                objects_endpoint = client.get_object_type(object_type, organization)
                 if stream:
                     if filter:
+                        print(f"Streaming filter: {query}\n")
                         all_objects = objects_endpoint.stream(filters=[query], sort=sort)
                     else:
+                        print(f"Streaming query: {query}\n")
                         all_objects = objects_endpoint.stream(query=query, sort=sort)
 
                     if delete and not Confirm.ask(
@@ -589,7 +500,7 @@ def get(
                                     obj.delete()
                                     print(f"Deleted {obj.id}")
                                 else:
-                                    collected_objects.append(pydantic_to_dict(obj))
+                                    collected_objects.append(obj.model_dump(by_alias=True))
                                     print(f"Processing {obj.id}")
                             except Exception as e:
                                 print(f"Error processing {obj.id}: {e}")
@@ -605,39 +516,20 @@ def get(
                                     obj.delete()
                                     print(f"Deleted {obj.id}")
                                 else:
-                                    # Get column list for the referenced object
-                                    if object_metadata["plural"] in DEFAULT_COLUMNS:
-                                        column_list = DEFAULT_COLUMNS[object_metadata["plural"]]
-                                    else:
-                                        column_list = DEFAULT_COLUMNS["default"]
-
-                                    # Print values for each column
-                                    values = []
-                                    for col in column_list:
-                                        try:
-                                            # Handle dot notation by splitting and traversing
-                                            parts = col.split('.')
-                                            value = obj
-                                            for part in parts:
-                                                value = getattr(value, part)
-                                            values.append(str(value))
-                                        except AttributeError:
-                                            values.append("")
-                                    print(" | ".join(values))
+                                    print(obj)
                             except Exception as e:
                                 print(f"Error processing {obj.id}: {e}")
                 else:
                     if filter:
                         print(f"Using filter: {query}\n")
-                        objects_endpoint_page = objects_endpoint.filter(query, page, pagesize, sort)
+                        objects_endpoint_page = objects_endpoint.list("*", page, pagesize, sort, filters=[query])
                     else:
                         print(f"Using query: {query}\n")
-                        objects_endpoint_page = objects_endpoint.list(query=query, page=page, page_size=pagesize,
-                                                                 sort=sort)
+                        objects_endpoint_page = objects_endpoint.list(query=query, page=page, page_size=pagesize, sort=sort)
                     
                     # Save to file if output_file is specified
                     if output_file and hasattr(objects_endpoint_page, 'content'):
-                        collection_data = [pydantic_to_dict(obj) for obj in objects_endpoint_page.content]
+                        collection_data = [obj.model_dump(by_alias=True) for obj in objects_endpoint_page.content]
                         page_data = {
                             "content": collection_data,
                             "page": objects_endpoint_page.number,
@@ -651,26 +543,153 @@ def get(
                     
                     print_object_table(object_metadata, objects_endpoint_page, query, page, pagesize, sort, truncate)
         else:
-            organizations = client.organizations.list()
-            print("You need to provide the slug of the organization to list the resources.\n")
+            if ref and not ref.isspace():
+                if "/" in ref:
+                    object_instance = client.get_object_by_ref(object_metadata["plural"], ref)
+                    object_dict = object_instance.model_dump(by_alias=True)
+                    
+                    # Save to file if output_file is specified
+                    if output_file and save_to_file(object_dict, format):
+                        GLOBAL_IGNORE_COMPLETE = True
+                        return
+                    
+                    if format == "json":
+                        # Handle both regular dict and pydantic objects
+                        if hasattr(object_instance, 'model_dump'):
+                            print(json.dumps(object_instance.model_dump(by_alias=True), indent=4))
+                        elif hasattr(object_instance, 'dict'):  # For older pydantic versions
+                            print(json.dumps(object_instance.dict(by_alias=True), indent=4))
+                        else:
+                            print(json.dumps(object_dict, indent=4))
+                        GLOBAL_IGNORE_COMPLETE = True
+                    elif format == "yaml" or not format:
+                        # Handle both regular dict and pydantic objects
+                        if hasattr(object_instance, 'model_dump'):
+                            print(yaml.dump(object_instance.model_dump(by_alias=True), indent=4))
+                        elif hasattr(object_instance, 'dict'):  # For older pydantic versions
+                            print(yaml.dump(object_instance.dict(by_alias=True), indent=4))
+                        else:
+                            print(yaml.dump(object_dict, indent=4))
+                        GLOBAL_IGNORE_COMPLETE = True
+                else:
+                    organization = client.organizations.find_by_slug(ref)
 
-            from rich.table import Table
-            from rich.console import Console
+                    if organization is None:
+                        print(f"Could not find organization with slug {ref}")
+                        sys.exit(1)
 
-            table = Table(title="Available Organizations")
-            table.add_column("Slug", style="cyan")
-            table.add_column("Name", style="green")
+                    objects_endpoint = client.get_object_type(object_type, organization)
+                    if stream:
+                        if filter:
+                            all_objects = objects_endpoint.stream(filters=[query], sort=sort)
+                        else:
+                            all_objects = objects_endpoint.stream(query=query, sort=sort)
 
-            for org in organizations.content:
-                table.add_row(org.slug, org.name)
+                        if delete and not Confirm.ask(
+                                "Are you sure you want to delete these objects? This action cannot be undone."
+                        ):
+                            print("Aborting delete")
+                            exit(1)
 
-            console = Console()
-            console.print(table)
+                        # Collect objects for file output if needed
+                        collected_objects = []
+                        if output_file:
+                            for obj in all_objects:
+                                try:
+                                    if delete:
+                                        obj.delete()
+                                        print(f"Deleted {obj.id}")
+                                    else:
+                                        collected_objects.append(obj.model_dump(by_alias=True))
+                                        print(f"Processing {obj.id}")
+                                except Exception as e:
+                                    print(f"Error processing {obj.id}: {e}")
+                            
+                            if collected_objects and save_to_file(collected_objects, format):
+                                GLOBAL_IGNORE_COMPLETE = True
+                                return
+                        else:
+                            for obj in all_objects:
+                                try:
+                                    print(f"Processing {obj.id}")
+                                    if delete:
+                                        obj.delete()
+                                        print(f"Deleted {obj.id}")
+                                    else:
+                                        # Get column list for the referenced object
+                                        if object_metadata["plural"] in DEFAULT_COLUMNS:
+                                            column_list = DEFAULT_COLUMNS[object_metadata["plural"]]
+                                        else:
+                                            column_list = DEFAULT_COLUMNS["default"]
 
-            if organizations.total_elements > len(organizations.content):
-                console.print(
-                    f"\nShowing {len(organizations.content)} of {organizations.total_elements} total organizations.")
+                                        # Print values for each column
+                                        values = []
+                                        for col in column_list:
+                                            try:
+                                                # Handle dot notation by splitting and traversing
+                                                parts = col.split('.')
+                                                value = obj
+                                                for part in parts:
+                                                    value = getattr(value, part)
+                                                values.append(str(value))
+                                            except AttributeError:
+                                                values.append("")
+                                        print(" | ".join(values))
+                                except Exception as e:
+                                    print(f"Error processing {obj.id}: {e}")
+                    else:
+                        if filter:
+                            print(f"Using filter: {query}\n")
+                            objects_endpoint_page = objects_endpoint.filter(query, page, pagesize, sort)
+                        else:
+                            print(f"Using query: {query}\n")
+                            objects_endpoint_page = objects_endpoint.list(query=query, page=page, page_size=pagesize,
+                                                                     sort=sort)
+                        
+                        # Save to file if output_file is specified
+                        if output_file and hasattr(objects_endpoint_page, 'content'):
+                            collection_data = [obj.model_dump(by_alias=True) for obj in objects_endpoint_page.content]
+                            page_data = {
+                                "content": collection_data,
+                                "page": objects_endpoint_page.number,
+                                "pageSize": objects_endpoint_page.size,
+                                "totalPages": objects_endpoint_page.total_pages,
+                                "totalElements": objects_endpoint_page.total_elements
+                            }
+                            if save_to_file(page_data, format):
+                                GLOBAL_IGNORE_COMPLETE = True
+                                return
+                        
+                        print_object_table(object_metadata, objects_endpoint_page, query, page, pagesize, sort, truncate)
+            else:
+                organizations = client.organizations.list()
+                print("You need to provide the slug of the organization to list the resources.\n")
 
+                from rich.table import Table
+                from rich.console import Console
+
+                table = Table(title="Available Organizations")
+                table.add_column("Slug", style="cyan")
+                table.add_column("Name", style="green")
+
+                for org in organizations.content:
+                    table.add_row(org.slug, org.name)
+
+                console = Console()
+                console.print(table)
+
+                if organizations.total_elements > len(organizations.content):
+                    console.print(
+                        f"\nShowing {len(organizations.content)} of {organizations.total_elements} total organizations.")
+
+                sys.exit(1)
+
+    except Exception as e:
+        better_exceptions.print_exc()
+
+
+        # Don't exit with error code for empty lists or missing content
+        if "content" not in str(e).lower() and "empty" not in str(e).lower():
             sys.exit(1)
 
 
@@ -755,7 +774,7 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint_page: A
             f"(total of {objects_endpoint_page.total_elements} objects)"
         )
     except Exception as e:
-        better_exceptions.print_exc()
+        print("e:", e)
         raise e
 
 
@@ -811,7 +830,6 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint_page: A
 )
 @click.option("--sort", default=None, help="Sort by ie. name:asc")
 @pass_info
-@safe_exception_handler
 def query(
         _: Info,
         query: list[str],
@@ -985,7 +1003,6 @@ def query(
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option("--output", help="The path to export to")
 @pass_info
-@safe_exception_handler
 def export_project(_: Info, project_id: str, url: str, token: str, output: str) -> None:
     """Export a project and associated resources to a local zip file.
 
@@ -998,10 +1015,14 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str) 
     Returns:
         None
     """
-    client = KodexaClient(url=url, access_token=token)
-    project = client.get_project(project_id)
-    client.export_project(project, output)
-    print("Project exported successfully")
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        project = client.get_project(project_id)
+        client.export_project(project, output)
+        print("Project exported successfully")
+    except Exception as e:
+        print(f"Error exporting project: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1011,12 +1032,15 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str) 
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
-@safe_exception_handler
 def import_project(_: Info, path: str, url: str, token: str) -> None:
     """Import a project and associated resources from a local zip file."""
-    client = KodexaClient(url=url, access_token=token)
-    client.import_project(path)
-    print("Project imported successfully")
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.import_project(path)
+        print("Project imported successfully")
+    except Exception as e:
+        print(f"Error importing project: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1026,12 +1050,15 @@ def import_project(_: Info, path: str, url: str, token: str) -> None:
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
-@safe_exception_handler
 def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
     """Bootstrap a model by creating metadata and example implementation."""
-    client = KodexaClient(url=url, access_token=token)
-    client.create_project(project_id)
-    print("Project bootstrapped successfully")
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.create_project(project_id)
+        print("Project bootstrapped successfully")
+    except Exception as e:
+        print(f"Error bootstrapping project: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1043,7 +1070,6 @@ def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
-@safe_exception_handler
 def send_event(
         _: Info,
         event_id: str,
@@ -1053,13 +1079,17 @@ def send_event(
         token: str,
 ) -> None:
     """Send an event to the Kodexa server."""
-    client = KodexaClient(url=url, access_token=token)
     try:
-        event_data = json.loads(data)
-        client.send_event(event_id, type, event_data)
-        print("Event sent successfully")
-    except json.JSONDecodeError:
-        print("Error: Invalid JSON data")
+        client = KodexaClient(url=url, access_token=token)
+        try:
+            event_data = json.loads(data)
+            client.send_event(event_id, type, event_data)
+            print("Event sent successfully")
+        except json.JSONDecodeError:
+            print("Error: Invalid JSON data")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error sending event: {str(e)}")
         sys.exit(1)
 
 
@@ -1071,12 +1101,15 @@ def send_event(
 @click.option(
     "--show-token/--no-show-token", default=False, help="Show access token"
 )
-@safe_exception_handler
 def platform(_: Info, python: bool, show_token: bool) -> None:
     """Get details about the connected Kodexa platform instance."""
-    client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
-    info = client.get_platform()
-    print(f"Platform information: {info}")
+    try:
+        client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
+        info = client.get_platform()
+        print(f"Platform information: {info}")
+    except Exception as e:
+        print(f"Error getting platform info: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1087,12 +1120,16 @@ def platform(_: Info, python: bool, show_token: bool) -> None:
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @click.option("-y", "--yes", is_flag=True, help="Don't ask for confirmation")
 @pass_info
-@safe_exception_handler
 def delete(_: Info, ref: str, url: str, token: str, yes: bool) -> None:
     """Delete a resource from the Kodexa platform."""
-    client = KodexaClient(url=url, access_token=token)
-    client.get_object_by_ref(ref).delete()
-    print(f"Component {ref} deleted successfully")
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.get_object_by_ref(ref).delete()
+        print(f"Component {ref} deleted successfully")
+        return
+    except Exception as e:
+        print(f"Error deleting component: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1104,7 +1141,6 @@ def delete(_: Info, ref: str, url: str, token: str, yes: bool) -> None:
 @click.option(
     "--list/--no-list", default=False, help="List profile names"
 )
-@safe_exception_handler
 def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
     """Manage Kodexa platform profiles.
 
@@ -1119,30 +1155,40 @@ def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
     If no arguments are provided, prints the current profile.
     """
     if profile:
-        if delete:
-            if not _validate_profile(profile):
-                print(f"Profile '{profile}' does not exist")
-                print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
-                sys.exit(1)
-            print(f"Deleting profile {profile}")
-            KodexaPlatform.delete_profile(profile)
-        else:
-            if not _validate_profile(profile):
-                print(f"Profile '{profile}' does not exist")
-                print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
-                sys.exit(1)
-            print(f"Setting profile to {profile}")
-            KodexaPlatform.set_profile(profile)
+        try:
+            if delete:
+                if not _validate_profile(profile):
+                    print(f"Profile '{profile}' does not exist")
+                    print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
+                    sys.exit(1)
+                print(f"Deleting profile {profile}")
+                KodexaPlatform.delete_profile(profile)
+            else:
+                if not _validate_profile(profile):
+                    print(f"Profile '{profile}' does not exist")
+                    print(f"Available profiles: {','.join(KodexaPlatform.list_profiles())}")
+                    sys.exit(1)
+                print(f"Setting profile to {profile}")
+                KodexaPlatform.set_profile(profile)
+        except Exception as e:
+            print(f"Error managing profile: {str(e)}")
+            sys.exit(1)
     else:
         if list:
-            profiles = KodexaPlatform.list_profiles()
-            print(f"Profiles: {','.join(profiles)}")
+            try:
+                profiles = KodexaPlatform.list_profiles()
+                print(f"Profiles: {','.join(profiles)}")
+            except Exception as e:
+                print(f"Error listing profiles: {str(e)}")
         else:
-            current = get_current_kodexa_profile()
-            if current:
-                print(f"Current profile: {current} [{KodexaPlatform.get_url(current)}]")
-            else:
-                print("No profile set")
+            try:
+                current = get_current_kodexa_profile()
+                if current:
+                    print(f"Current profile: {current} [{KodexaPlatform.get_url(current)}]")
+                else:
+                    print("No profile set")
+            except Exception as e:
+                print(f"Error getting current profile: {str(e)}")
 
 
 @cli.command()
@@ -1176,8 +1222,6 @@ def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str)
     "--url", default=None, help="The URL to the Kodexa server"
 )
 @click.option("--token", default=None, help="Access token")
-@pass_info
-@safe_exception_handler
 def login(_: Info, url: Optional[str] = None, token: Optional[str] = None) -> None:
     """Log into a Kodexa platform instance.
 
@@ -1185,27 +1229,30 @@ def login(_: Info, url: Optional[str] = None, token: Optional[str] = None) -> No
     If arguments are not provided, they will be prompted for interactively.
     Use the global --profile option to specify which profile to create or update.
     """
-    kodexa_url = url if url is not None else input("Enter the Kodexa URL (https://platform.kodexa.ai): ")
-    kodexa_url = kodexa_url.strip()
-    if kodexa_url.endswith("/"):
-        kodexa_url = kodexa_url[:-1]
-    if kodexa_url == "":
-        print("Using default as https://platform.kodexa.ai")
-        kodexa_url = "https://platform.kodexa.ai"
-    token = token if token is not None else input("Enter your token: ")
-    ctx = click.get_current_context(silent=True)
-    if url is None or token is None:  # Interactive mode
-        profile_input = input("Enter your profile name (default): ").strip()
-        profile_name = profile_input if profile_input else "default"
-    else:  # Command-line mode
-        profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj,
-                                                                         Info) and ctx.obj.profile is not None else "default"
-    KodexaPlatform.login(kodexa_url, token, profile_name)
+    try:
+        kodexa_url = url if url is not None else input("Enter the Kodexa URL (https://platform.kodexa.ai): ")
+        kodexa_url = kodexa_url.strip()
+        if kodexa_url.endswith("/"):
+            kodexa_url = kodexa_url[:-1]
+        if kodexa_url == "":
+            print("Using default as https://platform.kodexa.ai")
+            kodexa_url = "https://platform.kodexa.ai"
+        token = token if token is not None else input("Enter your token: ")
+        ctx = click.get_current_context(silent=True)
+        if url is None or token is None:  # Interactive mode
+            profile_input = input("Enter your profile name (default): ").strip()
+            profile_name = profile_input if profile_input else "default"
+        else:  # Command-line mode
+            profile_name = ctx.obj.profile if ctx is not None and isinstance(ctx.obj,
+                                                                             Info) and ctx.obj.profile is not None else "default"
+        KodexaPlatform.login(kodexa_url, token, profile_name)
+    except Exception as e:
+        print(f"Error logging in: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
 @pass_info
-@safe_exception_handler
 def version(_: Info) -> None:
     """Get the installed version of the Kodexa CLI.
 
@@ -1217,13 +1264,16 @@ def version(_: Info) -> None:
 
 @cli.command()
 @pass_info
-@safe_exception_handler
 def profiles(_: Info) -> None:
     """List all available profiles with their URLs."""
-    profiles = KodexaPlatform.list_profiles()
-    for profile in profiles:
-        url = KodexaPlatform.get_url(profile)
-        print(f"{profile}: {url}")
+    try:
+        profiles = KodexaPlatform.list_profiles()
+        for profile in profiles:
+            url = KodexaPlatform.get_url(profile)
+            print(f"{profile}: {url}")
+    except Exception as e:
+        print(f"Error listing profiles: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1259,7 +1309,6 @@ def profiles(_: Info) -> None:
 @click.option("--helm/--no-helm", default=False, help="Generate a helm chart")
 @click.argument("files", nargs=-1)
 @pass_info
-@safe_exception_handler
 def package(
         _: Info,
         path: str,
@@ -1382,7 +1431,7 @@ def package(
             import uuid
 
             model_content_metadata.state_hash = str(uuid.uuid4())
-            metadata_obj["metadata"] = pydantic_to_dict(model_content_metadata)
+            metadata_obj["metadata"] = model_content_metadata.model_dump(by_alias=True)
             name = build_json()
 
             # We need to work out the parent directory
@@ -1499,7 +1548,6 @@ def package(
 @click.option("--external-data/--no-external-data", default=False,
               help="Look for a .json file that has the same name as the upload and attach this as external data")
 @pass_info
-@safe_exception_handler
 def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int,
            external_data: bool = False) -> None:
     """Upload a file to the Kodexa platform.
@@ -1560,7 +1608,6 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
 @click.option("--overlay", help="JSON/YAML file to overlay metadata")
 @click.option("--slug", help="Override slug for component")
 @pass_info
-@safe_exception_handler
 def deploy(
         _: Info,
         org: Optional[str],
@@ -1711,54 +1758,3 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
     client = KodexaClient(url=url, access_token=token)
     model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
     model_store_endpoint.download_implementation(output_file)
-
-
-def pydantic_to_dict(obj: Any) -> Any:
-    """Convert a pydantic object to a dictionary for serialization.
-    
-    This function handles both newer pydantic models that use model_dump
-    and older ones that use dict() method. It recursively handles nested objects.
-    
-    Args:
-        obj: The object to convert, can be a pydantic model, dict, list, or primitive type
-        
-    Returns:
-        The converted object ready for serialization
-    """
-    if obj is None:
-        return None
-    
-    # Handle pydantic objects
-    if hasattr(obj, 'model_dump'):
-        return obj.model_dump(by_alias=True)
-    elif hasattr(obj, 'dict'):  # For older pydantic versions
-        return obj.dict(by_alias=True)
-    
-    # Handle lists - recursively convert elements
-    if isinstance(obj, list):
-        return [pydantic_to_dict(item) for item in obj]
-    
-    # Handle dictionaries - recursively convert values
-    if isinstance(obj, dict):
-        return {k: pydantic_to_dict(v) for k, v in obj.items()}
-    
-    # Return primitive types unchanged
-    return obj
-
-def safe_exception_handler(func):
-    """Decorator to handle exceptions with better_exceptions.
-    
-    Args:
-        func: The function to wrap
-        
-    Returns:
-        Wrapped function with exception handling
-    """
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            better_exceptions.print_exc()
-            print(f"\n:fire: [red][bold]Failed[/bold]: {e}[/red]")
-            sys.exit(1)
-    return wrapper
