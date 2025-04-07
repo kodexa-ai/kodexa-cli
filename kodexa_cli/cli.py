@@ -1703,7 +1703,7 @@ def deploy(
                     raise Exception("Unsupported file type")
 
                 deploy_obj(obj)
-    elif file is None:
+    elif files is None:
         print("Reading from stdin")
         if format == "yaml" or format == "yml":
             obj = yaml.safe_load(sys.stdin.read())
