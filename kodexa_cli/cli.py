@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Optional
+from kodexa.platform.manifest import ManifestManager
 
 import click
 from importlib import metadata
@@ -1064,6 +1065,34 @@ def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
         sys.exit(1)
 
 
+@cli.command()
+@click.argument("manifest_path", required=True)
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@click.option("--deploy/--no-deploy", default=True, help="Deploy the manifest")
+@pass_info
+def manifest(
+        _: Info,
+        manifest_path: str,
+        url: str,
+        token: str,
+        deploy: bool = True,
+) -> None:
+    """Send an event to the Kodexa server."""
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        manifest_manager = ManifestManager(client)
+        
+        if deploy:
+            manifest_manager.deploy_from_manifest(manifest_path)
+        else:
+            manifest_manager.undeploy_from_manifest(manifest_path)
+    except Exception as e:
+        print(f"Error processing manifest: {str(e)}")
+        sys.exit(1)
+        
 @cli.command()
 @click.argument("event_id", required=True)
 @click.option("--type", required=True, help="The type of event")
