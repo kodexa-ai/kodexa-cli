@@ -526,7 +526,8 @@ def get(
                         objects_endpoint_page = objects_endpoint.list("*", page, pagesize, sort, filters=[query])
                     else:
                         print(f"Using query: {query}\n")
-                        objects_endpoint_page = objects_endpoint.list(query=query, page=page, page_size=pagesize, sort=sort)
+                        objects_endpoint_page = objects_endpoint.list(query=query, page=page, page_size=pagesize,
+                                                                     sort=sort)
                     
                     # Save to file if output_file is specified
                     if output_file and hasattr(objects_endpoint_page, 'content'):
@@ -1067,32 +1068,41 @@ def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
 
 @cli.command()
 @click.argument("manifest_path", required=True)
+@click.argument("command", type=click.Choice(["deploy", "undeploy", "sync"]), default="deploy")
 @click.option(
     "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
 )
 @click.option("--token", default=get_current_access_token(), help="Access token")
-@click.option("--deploy/--no-deploy", default=True, help="Deploy the manifest")
 @pass_info
 def manifest(
         _: Info,
         manifest_path: str,
+        command: str,
         url: str,
         token: str,
-        deploy: bool = True,
 ) -> None:
-    """Send an event to the Kodexa server."""
+    """Manage manifests in the Kodexa platform.
+
+    COMMAND can be one of:
+    - deploy: Deploy resources defined in the manifest
+    - undeploy: Remove resources defined in the manifest
+    - sync: Synchronize resources with the manifest
+    """
     try:
         client = KodexaClient(url=url, access_token=token)
         manifest_manager = ManifestManager(client)
         
-        if deploy:
+        if command == "deploy":
             manifest_manager.deploy_from_manifest(manifest_path)
-        else:
+        elif command == "undeploy":
             manifest_manager.undeploy_from_manifest(manifest_path)
+        elif command == "sync":
+            manifest_manager.sync_from_instance(manifest_path)
     except Exception as e:
         print(f"Error processing manifest: {str(e)}")
         sys.exit(1)
-        
+      
+       
 @cli.command()
 @click.argument("event_id", required=True)
 @click.option("--type", required=True, help="The type of event")
