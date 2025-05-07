@@ -327,25 +327,9 @@ def safe_entry_point() -> None:
         # Record the starting time of the function execution
         start_time = datetime.now().replace(microsecond=0)
 
-        cli_version = metadata.version("kodexa")
-
-        # Check Pypi for the latest version
-        try:
-            latest_version = seq(["https://pypi.org/pypi/kodexa/json"]).map(
-                lambda url: json.loads(requests.get(url).text)
-            ).map(lambda data: data["info"]["version"]).first()
-
-            if latest_version != cli_version:
-                print(
-                    f"New version of Kodexa CLI available: {latest_version} (you have {cli_version})"
-                )
-        except:
-            print("Unable to check for latest version")
-
         try:
             current_kodexa_profile = get_current_kodexa_profile()
             current_kodexa_url = get_current_kodexa_url()
-
             if current_kodexa_profile and current_kodexa_url:
                 print(f"Using profile {current_kodexa_profile} @ {current_kodexa_url}\n")
         except:
