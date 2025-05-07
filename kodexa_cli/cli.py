@@ -536,7 +536,25 @@ def get(
                                     obj.delete()
                                     print(f"Deleted {obj.id}")
                                 else:
-                                    print(obj)
+                                    # Get column list for the referenced object
+                                    if object_metadata["plural"] in DEFAULT_COLUMNS:
+                                        column_list = DEFAULT_COLUMNS[object_metadata["plural"]]
+                                    else:
+                                        column_list = DEFAULT_COLUMNS["default"]
+
+                                    # Print values for each column
+                                    values = []
+                                    for col in column_list:
+                                        try:
+                                            # Handle dot notation by splitting and traversing
+                                            parts = col.split('.')
+                                            value = obj
+                                            for part in parts:
+                                                value = getattr(value, part)
+                                            values.append(str(value))
+                                        except AttributeError:
+                                            values.append("")
+                                    print(" | ".join(values))
                             except Exception as e:
                                 print(f"Error processing {obj.id}: {e}")
                 else:
@@ -1064,6 +1082,9 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str) 
 @pass_info
 def import_project(_: Info, path: str, url: str, token: str) -> None:
     """Import a project and associated resources from a local zip file."""
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         client.import_project(path)
@@ -1638,50 +1659,98 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
            external_data: bool = False) -> None:
     """Upload a file to the Kodexa platform.
     """
-
     if not config_check(url, token):
         return
 
-    client = KodexaClient(url=url, access_token=token)
-    document_store = client.get_object_by_ref("store", ref)
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        document_store = client.get_object_by_ref("store", ref)
 
-    from kodexa.platform.client import DocumentStoreEndpoint
+        from kodexa.platform.client import DocumentStoreEndpoint
 
-    print(f"Uploading {len(paths)} files to {ref}\n")
-    if isinstance(document_store, DocumentStoreEndpoint):
-        from rich.progress import track
+        print(f"Uploading {len(paths)} files to {ref}\n")
+        if isinstance(document_store, DocumentStoreEndpoint):
+            from rich.progress import track
 
-        def upload_file(path, external_data):
-            try:
-                if external_data:
-                    external_data_path = f"{os.path.splitext(path)[0]}.json"
-                    if os.path.exists(external_data_path):
-                        with open(external_data_path, "r") as f:
-                            external_data = json.load(f)
-                            document_store.upload_file(path, external_data=external_data)
-                            return f"Successfully uploaded {path} with external data {json.dumps(external_data)}"
+            def upload_file(path, external_data):
+                try:
+                    if external_data:
+                        external_data_path = f"{os.path.splitext(path)[0]}.json"
+                        if os.path.exists(external_data_path):
+                            with open(external_data_path, "r") as f:
+                                external_data = json.load(f)
+                                document_store.upload_file(path, external_data=external_data)
+                                return f"Successfully uploaded {path} with external data {json.dumps(external_data)}"
+                        else:
+                            return f"External data file not found for {path}"
                     else:
-                        return f"External data file not found for {path}"
-                else:
-                    document_store.upload_file(path)
-                    return f"Successfully uploaded {path}"
-            except Exception as e:
-                return f"Error uploading {path}: {e}"
+                        document_store.upload_file(path)
+                        return f"Successfully uploaded {path}"
+                except Exception as e:
+                    return f"Error uploading {path}: {e}"
 
-        from concurrent.futures import ThreadPoolExecutor
+            from concurrent.futures import ThreadPoolExecutor
 
-        # Using ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            upload_args = [(path, external_data) for path in paths]
-            for result in track(
-                    executor.map(lambda args: upload_file(*args), upload_args),
-                    total=len(paths),
-                    description="Uploading files",
-            ):
-                print(result)
-        print("Upload complete :tada:")
-    else:
-        print(f"{ref} is not a document store")
+            # Using ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=threads) as executor:
+                upload_args = [(path, external_data) for path in paths]
+                for result in track(
+                        executor.map(lambda args: upload_file(*args), upload_args),
+                        total=len(paths),
+                        description="Uploading files",
+                ):
+                    print(result)
+            print("Upload complete :tada:")
+        else:
+            print(f"{ref} is not a document store")
+    except Exception as e:
+        print(f"Error during upload: {str(e)}")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("execution_id", required=True)
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@pass_info
+def logs(_: Info, execution_id: str, url: str, token: str) -> None:
+    """Get the logs for a specific execution."""
+    if not config_check(url, token):
+        return
+
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        logs_data = client.executions.get(execution_id).logs
+        print(logs_data)
+    except Exception as e:
+        print(f"Error getting logs: {str(e)}")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("ref", required=True)
+@click.argument("output_file", required=False, default="model_implementation")
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@pass_info
+def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str) -> None:
+    """Download the implementation of a model store.
+    """
+    if not config_check(url, token):
+        return
+
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
+        model_store_endpoint.download_implementation(output_file)
+        print("Implementation downloaded successfully")
+    except Exception as e:
+        print(f"Error downloading implementation: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -1717,102 +1786,103 @@ def deploy(
     if not config_check(url, token):
         return
 
-    client = KodexaClient(access_token=token, url=url)
+    try:
+        client = KodexaClient(access_token=token, url=url)
 
-    def deploy_obj(obj):
-        if "deployed" in obj:
-            del obj["deployed"]
+        def deploy_obj(obj):
+            if "deployed" in obj:
+                del obj["deployed"]
 
-        overlay_obj = None
+            overlay_obj = None
 
-        if overlay is not None:
-            print("Reading overlay")
-            if overlay.endswith("yaml") or overlay.endswith("yml"):
-                overlay_obj = yaml.safe_load(sys.stdin.read())
-            elif overlay.endswith("json"):
-                overlay_obj = json.loads(sys.stdin.read())
+            if overlay is not None:
+                print("Reading overlay")
+                if overlay.endswith("yaml") or overlay.endswith("yml"):
+                    overlay_obj = yaml.safe_load(sys.stdin.read())
+                elif overlay.endswith("json"):
+                    overlay_obj = json.loads(sys.stdin.read())
+                else:
+                    raise Exception(
+                        "Unable to determine the format of the overlay file, must be .json or .yml/.yaml"
+                    )
+
+            if isinstance(obj, list):
+                print(f"Found {len(obj)} components")
+                for o in obj:
+                    if overlay_obj:
+                        o = merge(o, overlay_obj)
+
+                    component = client.deserialize(o)
+                    if org is not None:
+                        component.org_slug = org
+                    print(
+                        f"Deploying component {component.slug}:{component.version} to {client.get_url()}"
+                    )
+                    from datetime import datetime
+
+                    start = datetime.now()
+                    component.deploy(update=update)
+                    from datetime import datetime
+
+                    print(
+                        f"Deployed at {datetime.now()}, took {datetime.now() - start} seconds"
+                    )
+
             else:
-                raise Exception(
-                    "Unable to determine the format of the overlay file, must be .json or .yml/.yaml"
-                )
-
-        if isinstance(obj, list):
-            print(f"Found {len(obj)} components")
-            for o in obj:
                 if overlay_obj:
-                    o = merge(o, overlay_obj)
+                    obj = merge(obj, overlay_obj)
 
-                component = client.deserialize(o)
+                component = client.deserialize(obj)
+
+                if version is not None:
+                    component.version = version
+                if slug is not None:
+                    component.slug = slug
                 if org is not None:
                     component.org_slug = org
-                print(
-                    f"Deploying component {component.slug}:{component.version} to {client.get_url()}"
-                )
-                from datetime import datetime
+                print(f"Deploying component {component.slug}:{component.version}")
+                log_details = component.deploy(update=update)
+                for log_detail in log_details:
+                    print(log_detail)
 
-                start = datetime.now()
-                component.deploy(update=update)
-                from datetime import datetime
+        if files is not None:
+            from rich.progress import track
 
-                print(
-                    f"Deployed at {datetime.now()}, took {datetime.now() - start} seconds"
-                )
+            for idx in track(
+                    range(len(files)), description=f"Deploying {len(files)} files"
+            ):
+                obj = {}
+                file = files[idx]
+                with open(file, "r") as f:
+                    if file.lower().endswith(".json"):
+                        obj.update(json.load(f))
+                    elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
+                        obj.update(yaml.safe_load(f))
+                    else:
+                        raise Exception("Unsupported file type")
 
+                    deploy_obj(obj)
+        elif files is None:
+            print("Reading from stdin")
+            if format == "yaml" or format == "yml":
+                obj = yaml.safe_load(sys.stdin.read())
+            elif format == "json":
+                obj = json.loads(sys.stdin.read())
+            else:
+                raise Exception("You must provide a format if using stdin")
+
+            deploy_obj(obj)
         else:
-            if overlay_obj:
-                obj = merge(obj, overlay_obj)
-
-            component = client.deserialize(obj)
-
-            if version is not None:
-                component.version = version
-            if slug is not None:
-                component.slug = slug
-            if org is not None:
-                component.org_slug = org
-            print(f"Deploying component {component.slug}:{component.version}")
-            log_details = component.deploy(update=update)
-            for log_detail in log_details:
-                print(log_detail)
-
-    if files is not None:
-        from rich.progress import track
-
-        for idx in track(
-                range(len(files)), description=f"Deploying {len(files)} files"
-        ):
-            obj = {}
-            file = files[idx]
+            print("Reading from file", file)
             with open(file, "r") as f:
                 if file.lower().endswith(".json"):
-                    obj.update(json.load(f))
+                    obj = json.load(f)
                 elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
-                    obj.update(yaml.safe_load(f))
+                    obj = yaml.safe_load(f)
                 else:
                     raise Exception("Unsupported file type")
 
                 deploy_obj(obj)
-    elif files is None:
-        print("Reading from stdin")
-        if format == "yaml" or format == "yml":
-            obj = yaml.safe_load(sys.stdin.read())
-        elif format == "json":
-            obj = json.loads(sys.stdin.read())
-        else:
-            raise Exception("You must provide a format if using stdin")
-
-        deploy_obj(obj)
-    else:
-        print("Reading from file", file)
-        with open(file, "r") as f:
-            if file.lower().endswith(".json"):
-                obj = json.load(f)
-            elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
-                obj = yaml.safe_load(f)
-            else:
-                raise Exception("Unsupported file type")
-
-            deploy_obj(obj)
 
     print("Deployed :tada:")
 
@@ -1856,3 +1926,4 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
     client = KodexaClient(url=url, access_token=token)
     model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
     model_store_endpoint.download_implementation(output_file)
+
