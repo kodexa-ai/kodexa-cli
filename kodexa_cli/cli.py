@@ -160,7 +160,7 @@ def get_current_kodexa_profile() -> str:
     except Exception as e:
         logging.debug(f"Error getting current profile: {str(e)}")
         return ""
-
+        
 
 def get_current_kodexa_url():
     try:
@@ -176,6 +176,15 @@ def get_current_access_token():
         return KodexaPlatform.get_access_token(profile)
     except:
         return ""
+
+def config_check(url, token) -> bool:
+    if not(url and token):
+        print(f"\nYour Kodexa profile is not configured")
+        print(f"To proceed, you must first run:")
+        print(f"kodexa login")
+        return False
+    return True
+
 
 
 @contextmanager
@@ -334,7 +343,11 @@ def safe_entry_point() -> None:
             print("Unable to check for latest version")
 
         try:
-            print(f"Using profile {get_current_kodexa_profile()} @ {get_current_kodexa_url()}\n")
+            current_kodexa_profile = get_current_kodexa_profile()
+            current_kodexa_url = get_current_kodexa_url()
+
+            if current_kodexa_profile and current_kodexa_url:
+                print(f"Using profile {current_kodexa_profile} @ {current_kodexa_url}\n")
         except:
             print("Unable to load profile")
 
@@ -395,9 +408,15 @@ def get(
 ) -> None:
     """List instances of a component or entity type.
     """
+
+    if not config_check(url, token):
+        return
+
     if not object_type:
         print_available_object_types()
         return
+    
+    
 
     # Handle file output setup
     def save_to_file(data, output_format=None):
@@ -858,6 +877,9 @@ def query(
 ) -> None:
     """Query and manipulate documents in a document store.
     """
+    if not config_check(url, token):
+        return
+
     client = KodexaClient(url=url, access_token=token)
     from kodexa.platform.client import DocumentStoreEndpoint
 
@@ -1020,6 +1042,9 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str) 
     Returns:
         None
     """
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         project = client.get_project(project_id)
@@ -1057,6 +1082,10 @@ def import_project(_: Info, path: str, url: str, token: str) -> None:
 @pass_info
 def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
     """Bootstrap a model by creating metadata and example implementation."""
+    
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         client.create_project(project_id)
@@ -1088,6 +1117,10 @@ def manifest(
     - undeploy: Remove resources defined in the manifest
     - sync: Synchronize resources with the manifest
     """
+
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         manifest_manager = ManifestManager(client)
@@ -1121,6 +1154,10 @@ def send_event(
         token: str,
 ) -> None:
     """Send an event to the Kodexa server."""
+
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         try:
@@ -1145,6 +1182,10 @@ def send_event(
 )
 def platform(_: Info, python: bool, show_token: bool) -> None:
     """Get details about the connected Kodexa platform instance."""
+
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
         info = client.get_platform()
@@ -1164,6 +1205,9 @@ def platform(_: Info, python: bool, show_token: bool) -> None:
 @pass_info
 def delete(_: Info, ref: str, url: str, token: str, yes: bool) -> None:
     """Delete a resource from the Kodexa platform."""
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         client.get_object_by_ref(ref).delete()
@@ -1595,6 +1639,9 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
     """Upload a file to the Kodexa platform.
     """
 
+    if not config_check(url, token):
+        return
+
     client = KodexaClient(url=url, access_token=token)
     document_store = client.get_object_by_ref("store", ref)
 
@@ -1666,6 +1713,9 @@ def deploy(
     """
     Deploy a component to a Kodexa platform instance from a file or stdin
     """
+
+    if not config_check(url, token):
+        return
 
     client = KodexaClient(access_token=token, url=url)
 
@@ -1776,6 +1826,9 @@ def deploy(
 @pass_info
 def logs(_: Info, execution_id: str, url: str, token: str) -> None:
     """Get the logs for a specific execution."""
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         logs_data = client.executions.get(execution_id).logs
@@ -1796,6 +1849,9 @@ def logs(_: Info, execution_id: str, url: str, token: str) -> None:
 def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str) -> None:
     """Download the implementation of a model store.
     """
+
+    if not config_check(url, token):
+        return
     # We are going to download the implementation of the component
     client = KodexaClient(url=url, access_token=token)
     model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
