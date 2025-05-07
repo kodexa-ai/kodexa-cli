@@ -179,7 +179,7 @@ def get_current_access_token():
 
 def config_check(url, token) -> bool:
     if not(url and token):
-        print(f"\nYour Kodexa profile is not configured")
+        print(f"\nYour Kodexa profile is misconfigured or not configured")
         print(f"To proceed, you must first run:")
         print(f"kodexa login")
         return False
@@ -312,7 +312,6 @@ def safe_entry_point() -> None:
     Wraps the main CLI execution to provide:
     - Exception handling with user-friendly error messages
     - Execution timing information
-    - Version checking against PyPI
     - Profile information display
 
     Returns:
@@ -332,8 +331,10 @@ def safe_entry_point() -> None:
             current_kodexa_url = get_current_kodexa_url()
             if current_kodexa_profile and current_kodexa_url:
                 print(f"Using profile {current_kodexa_profile} @ {current_kodexa_url}\n")
-        except:
+        except Exception as e:
             print("Unable to load profile")
+            print(f"\n:fire: [red][bold]Failed[/bold]: {e}[/red]")
+
 
         # Call the cli() function
         cli()
