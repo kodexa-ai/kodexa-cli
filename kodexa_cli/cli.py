@@ -44,6 +44,44 @@ from kodexa.platform.kodexa import KodexaPlatform
 
 global GLOBAL_IGNORE_COMPLETE
 
+def print_error_message(title: str, message: str, error: Optional[str] = None) -> None:
+    """Print a standardized error message using rich formatting.
+    
+    Args:
+        title (str): The title of the error
+        message (str): The main error message
+        error (Optional[str]): The specific error details
+    """
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.text import Text
+    
+    console = Console()
+    
+    # Create a styled message
+    text = Text()
+    text.append("\n⚠️ ", style="bold yellow")
+    text.append(title, style="bold red")
+    text.append("\n\n")
+    text.append(message)
+    
+    if error:
+        text.append("\n\nError details:\n")
+        text.append(error, style="dim")
+    
+    text.append("\n\nFor more information, visit our documentation:")
+    text.append("\nhttps://developer.kodexa.ai/guides/cli", style="bold blue")
+    
+    # Create a panel with the message
+    panel = Panel(
+        text,
+        title="[bold]Kodexa CLI Error[/bold]",
+        border_style="red",
+        padding=(1, 2)
+    )
+    
+    console.print(panel)
+
 LOGGING_LEVELS = {
     0: logging.NOTSET,
     1: logging.ERROR,
@@ -358,16 +396,22 @@ def safe_entry_point() -> None:
             if current_kodexa_profile and current_kodexa_url:
                 print(f"Using profile {current_kodexa_profile} @ {current_kodexa_url}\n")
         except Exception as e:
-            print("Unable to load profile")
-            print(f"\n:fire: [red][bold]Failed[/bold]: {e}[/red]")
-
+            print_error_message(
+                "Profile Error",
+                "Unable to load your Kodexa profile.",
+                str(e)
+            )
 
         # Call the cli() function
         cli()
     except Exception as e:
         # If an exception occurs, mark success as False and print the exception
         success = False
-        print(f"\n:fire: [red][bold]Failed[/bold]: {e}[/red]")
+        print_error_message(
+            "Command Failed",
+            "The command could not be completed successfully.",
+            str(e)
+        )
     finally:
         # If the execution was successful
         if success and not GLOBAL_IGNORE_COMPLETE:
@@ -1062,7 +1106,11 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str) 
         client.export_project(project, output)
         print("Project exported successfully")
     except Exception as e:
-        print(f"Error exporting project: {str(e)}")
+        print_error_message(
+            "Export Failed",
+            f"Could not export project {project_id}.",
+            str(e)
+        )
         sys.exit(1)
 
 
@@ -1080,7 +1128,11 @@ def import_project(_: Info, path: str, url: str, token: str) -> None:
         client.import_project(path)
         print("Project imported successfully")
     except Exception as e:
-        print(f"Error importing project: {str(e)}")
+        print_error_message(
+            "Import Failed",
+            f"Could not import project from {path}.",
+            str(e)
+        )
         sys.exit(1)
 
 
@@ -1102,7 +1154,11 @@ def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
         client.create_project(project_id)
         print("Project bootstrapped successfully")
     except Exception as e:
-        print(f"Error bootstrapping project: {str(e)}")
+        print_error_message(
+            "Bootstrap Failed",
+            f"Could not bootstrap project {project_id}.",
+            str(e)
+        )
         sys.exit(1)
 
 
@@ -1362,14 +1418,21 @@ def version(_: Info) -> None:
 @cli.command()
 @pass_info
 def profiles(_: Info) -> None:
-    """List all available profiles with their URLs."""
+    """List all profiles."""
     try:
-        profiles = KodexaPlatform.list_profiles()
-        for profile in profiles:
-            url = KodexaPlatform.get_url(profile)
-            print(f"{profile}: {url}")
+        profiles = get_profiles()
+        if not profiles:
+            print("No profiles found")
+            return
+
+        for profile_name, profile_data in profiles.items():
+            print(f"{profile_name}: {profile_data['url']}")
     except Exception as e:
-        print(f"Error listing profiles: {str(e)}")
+        print_error_message(
+            "Profile Error",
+            "Could not list profiles.",
+            str(e)
+        )
         sys.exit(1)
 
 
@@ -1653,46 +1716,54 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
     if not config_check(url, token):
         return
 
-    client = KodexaClient(url=url, access_token=token)
-    document_store = client.get_object_by_ref("store", ref)
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        document_store = client.get_object_by_ref("store", ref)
 
-    from kodexa.platform.client import DocumentStoreEndpoint
+        from kodexa.platform.client import DocumentStoreEndpoint
 
-    print(f"Uploading {len(paths)} files to {ref}\n")
-    if isinstance(document_store, DocumentStoreEndpoint):
-        from rich.progress import track
+        print(f"Uploading {len(paths)} files to {ref}\n")
+        if isinstance(document_store, DocumentStoreEndpoint):
+            from rich.progress import track
 
-        def upload_file(path, external_data):
-            try:
-                if external_data:
-                    external_data_path = f"{os.path.splitext(path)[0]}.json"
-                    if os.path.exists(external_data_path):
-                        with open(external_data_path, "r") as f:
-                            external_data = json.load(f)
-                            document_store.upload_file(path, external_data=external_data)
-                            return f"Successfully uploaded {path} with external data {json.dumps(external_data)}"
+            def upload_file(path, external_data):
+                try:
+                    if external_data:
+                        external_data_path = f"{os.path.splitext(path)[0]}.json"
+                        if os.path.exists(external_data_path):
+                            with open(external_data_path, "r") as f:
+                                external_data = json.load(f)
+                                document_store.upload_file(path, external_data=external_data)
+                                return f"Successfully uploaded {path} with external data {json.dumps(external_data)}"
+                        else:
+                            return f"External data file not found for {path}"
                     else:
-                        return f"External data file not found for {path}"
-                else:
-                    document_store.upload_file(path)
-                    return f"Successfully uploaded {path}"
-            except Exception as e:
-                return f"Error uploading {path}: {e}"
+                        document_store.upload_file(path)
+                        return f"Successfully uploaded {path}"
+                except Exception as e:
+                    return f"Error uploading {path}: {e}"
 
-        from concurrent.futures import ThreadPoolExecutor
+            from concurrent.futures import ThreadPoolExecutor
 
-        # Using ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            upload_args = [(path, external_data) for path in paths]
-            for result in track(
-                    executor.map(lambda args: upload_file(*args), upload_args),
-                    total=len(paths),
-                    description="Uploading files",
-            ):
-                print(result)
-        print("Upload complete :tada:")
-    else:
-        print(f"{ref} is not a document store")
+            # Using ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=threads) as executor:
+                upload_args = [(path, external_data) for path in paths]
+                for result in track(
+                        executor.map(lambda args: upload_file(*args), upload_args),
+                        total=len(paths),
+                        description="Uploading files",
+                ):
+                    print(result)
+            print("Upload complete :tada:")
+        else:
+            print(f"{ref} is not a document store")
+    except Exception as e:
+        print_error_message(
+            "Upload Failed",
+            f"Could not upload files to {ref}.",
+            str(e)
+        )
+        sys.exit(1)
 
 
 @cli.command()
@@ -1867,3 +1938,53 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
     client = KodexaClient(url=url, access_token=token)
     model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
     model_store_endpoint.download_implementation(output_file)
+
+
+@cli.command()
+@click.argument("path", required=True)
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@pass_info
+def validate_manifest(_: Info, path: str, url: str, token: str) -> None:
+    """Validate a manifest file."""
+    if not config_check(url, token):
+        return
+
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.validate_manifest(path)
+        print("Manifest is valid")
+    except Exception as e:
+        print_error_message(
+            "Validation Failed",
+            f"Could not validate manifest at {path}.",
+            str(e)
+        )
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("path", required=True)
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@pass_info
+def deploy_manifest(_: Info, path: str, url: str, token: str) -> None:
+    """Deploy a manifest file."""
+    if not config_check(url, token):
+        return
+
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.deploy_manifest(path)
+        print("Manifest deployed successfully")
+    except Exception as e:
+        print_error_message(
+            "Deployment Failed",
+            f"Could not deploy manifest from {path}.",
+            str(e)
+        )
+        sys.exit(1)
