@@ -179,9 +179,35 @@ def get_current_access_token():
 
 def config_check(url, token) -> bool:
     if not(url and token):
-        print(f"\nYour Kodexa profile is misconfigured or not configured")
-        print(f"To proceed, you must first run:")
-        print(f"kodexa login")
+        from rich.console import Console
+        from rich.panel import Panel
+        from rich.markdown import Markdown
+        from rich.text import Text
+        
+        console = Console()
+        
+        # Create a styled message
+        message = Text()
+        message.append("\n🔐 ", style="bold yellow")
+        message.append("Authentication Required", style="bold red")
+        message.append("\n\nYour Kodexa profile is not configured or is misconfigured.")
+        message.append("\n\nTo proceed, you need to authenticate with the Kodexa platform.")
+        message.append("\n\nRun the following command to login:")
+        message.append("\n\n", style="bold")
+        message.append("kodexa login", style="bold green")
+        message.append("\n\nFor more information, visit our documentation:")
+        message.append("\n", style="bold")
+        message.append("https://developer.kodexa.ai/guides/cli/authentication", style="bold blue")
+        
+        # Create a panel with the message
+        panel = Panel(
+            message,
+            title="[bold]Kodexa CLI Authentication[/bold]",
+            border_style="blue",
+            padding=(1, 2)
+        )
+        
+        console.print(panel)
         return False
     return True
 
