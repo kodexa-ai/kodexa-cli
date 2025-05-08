@@ -44,6 +44,44 @@ from kodexa.platform.kodexa import KodexaPlatform
 
 global GLOBAL_IGNORE_COMPLETE
 
+def print_error_message(title: str, message: str, error: Optional[str] = None) -> None:
+    """Print a standardized error message using rich formatting.
+    
+    Args:
+        title (str): The title of the error
+        message (str): The main error message
+        error (Optional[str]): The specific error details
+    """
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.text import Text
+    
+    console = Console()
+    
+    # Create a styled message
+    text = Text()
+    text.append("\n⚠️ ", style="bold yellow")
+    text.append(title, style="bold red")
+    text.append("\n\n")
+    text.append(message)
+    
+    if error:
+        text.append("\n\nError details:\n")
+        text.append(error, style="dim")
+    
+    text.append("\n\nFor more information, visit our documentation:")
+    text.append("\nhttps://developer.kodexa.ai/guides/cli", style="bold blue")
+    
+    # Create a panel with the message
+    panel = Panel(
+        text,
+        title="[bold]Kodexa CLI Error[/bold]",
+        border_style="red",
+        padding=(1, 2)
+    )
+    
+    console.print(panel)
+
 LOGGING_LEVELS = {
     0: logging.NOTSET,
     1: logging.ERROR,
@@ -358,16 +396,22 @@ def safe_entry_point() -> None:
             if current_kodexa_profile and current_kodexa_url:
                 print(f"Using profile {current_kodexa_profile} @ {current_kodexa_url}\n")
         except Exception as e:
-            print("Unable to load profile")
-            print(f"\n:fire: [red][bold]Failed[/bold]: {e}[/red]")
-
+            print_error_message(
+                "Profile Error",
+                "Unable to load your Kodexa profile.",
+                str(e)
+            )
 
         # Call the cli() function
         cli()
     except Exception as e:
         # If an exception occurs, mark success as False and print the exception
         success = False
-        print(f"\n:fire: [red][bold]Failed[/bold]: {e}[/red]")
+        print_error_message(
+            "Command Failed",
+            "The command could not be completed successfully.",
+            str(e)
+        )
     finally:
         # If the execution was successful
         if success and not GLOBAL_IGNORE_COMPLETE:
@@ -1062,7 +1106,11 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str) 
         client.export_project(project, output)
         print("Project exported successfully")
     except Exception as e:
-        print(f"Error exporting project: {str(e)}")
+        print_error_message(
+            "Export Failed",
+            f"Could not export project {project_id}.",
+            str(e)
+        )
         sys.exit(1)
 
 
@@ -1080,7 +1128,11 @@ def import_project(_: Info, path: str, url: str, token: str) -> None:
         client.import_project(path)
         print("Project imported successfully")
     except Exception as e:
-        print(f"Error importing project: {str(e)}")
+        print_error_message(
+            "Import Failed",
+            f"Could not import project from {path}.",
+            str(e)
+        )
         sys.exit(1)
 
 
@@ -1102,7 +1154,11 @@ def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
         client.create_project(project_id)
         print("Project bootstrapped successfully")
     except Exception as e:
-        print(f"Error bootstrapping project: {str(e)}")
+        print_error_message(
+            "Bootstrap Failed",
+            f"Could not bootstrap project {project_id}.",
+            str(e)
+        )
         sys.exit(1)
 
 
@@ -1362,14 +1418,18 @@ def version(_: Info) -> None:
 @cli.command()
 @pass_info
 def profiles(_: Info) -> None:
-    """List all available profiles with their URLs."""
+    """List all profiles."""
     try:
         profiles = KodexaPlatform.list_profiles()
         for profile in profiles:
             url = KodexaPlatform.get_url(profile)
             print(f"{profile}: {url}")
     except Exception as e:
-        print(f"Error listing profiles: {str(e)}")
+        print_error_message(
+            "Profile Error",
+            "Could not list profiles.",
+            str(e)
+        )
         sys.exit(1)
 
 
