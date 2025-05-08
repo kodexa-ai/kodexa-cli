@@ -1936,10 +1936,18 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
     if not config_check(url, token):
         return
     # We are going to download the implementation of the component
-    client = KodexaClient(url=url, access_token=token)
-    model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
-    model_store_endpoint.download_implementation(output_file)
-
+    try:  
+        client = KodexaClient(url=url, access_token=token)
+        model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)  
+        model_store_endpoint.download_implementation(output_file)  
+        print(f"Implementation downloaded successfully to {output_file}")  
+    except Exception as e:  
+        print_error_message(  
+        "Download Failed",  
+        f"Could not download implementation for {ref}.",  
+        str(e)  
+        )  
+        sys.exit(1)  
 
 @cli.command()
 @click.argument("path", required=True)
