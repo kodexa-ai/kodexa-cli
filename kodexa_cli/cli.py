@@ -216,7 +216,7 @@ def get_current_access_token():
         return ""
 
 def config_check(url, token) -> bool:
-    if not(url and token):
+    if not url or not token:
         from rich.console import Console
         from rich.panel import Panel
         from rich.markdown import Markdown
@@ -1420,13 +1420,14 @@ def version(_: Info) -> None:
 def profiles(_: Info) -> None:
     """List all profiles."""
     try:
-        profiles = get_profiles()
+        profiles = KodexaPlatform.list_profiles()
         if not profiles:
             print("No profiles found")
             return
 
-        for profile_name, profile_data in profiles.items():
-            print(f"{profile_name}: {profile_data['url']}")
+        for profile in profiles:
+            url = KodexaPlatform.get_url(profile)
+            print(f"{profile}: {url}")
     except Exception as e:
         print_error_message(
             "Profile Error",
