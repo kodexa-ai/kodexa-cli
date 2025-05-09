@@ -1250,9 +1250,6 @@ def send_event(
 def platform(_: Info, python: bool, show_token: bool) -> None:
     """Get details about the connected Kodexa platform instance."""
 
-    if not config_check(url, token):
-        return
-
     try:
         client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
         info = client.get_platform()
