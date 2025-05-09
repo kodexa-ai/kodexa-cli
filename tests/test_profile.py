@@ -68,4 +68,6 @@ def test_profiles_command_error(cli_runner, mock_kodexa_platform):
     
     result = cli_runner.invoke(cli, ['profiles'])
     assert result.exit_code == 1
-    assert "Error listing profiles: Test error" in result.output
+    assert "Profile Error" in result.output
+    assert "Could not list profiles" in result.output
+    assert "Test error" in result.output

@@ -44,6 +44,44 @@ from kodexa.platform.kodexa import KodexaPlatform
 
 global GLOBAL_IGNORE_COMPLETE
 
+def print_error_message(title: str, message: str, error: Optional[str] = None) -> None:
+    """Print a standardized error message using rich formatting.
+    
+    Args:
+        title (str): The title of the error
+        message (str): The main error message
+        error (Optional[str]): The specific error details
+    """
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.text import Text
+    
+    console = Console()
+    
+    # Create a styled message
+    text = Text()
+    text.append("\n⚠️ ", style="bold yellow")
+    text.append(title, style="bold red")
+    text.append("\n\n")
+    text.append(message)
+    
+    if error:
+        text.append("\n\nError details:\n")
+        text.append(error, style="dim")
+    
+    text.append("\n\nFor more information, visit our documentation:")
+    text.append("\nhttps://developer.kodexa.ai/guides/cli", style="bold blue")
+    
+    # Create a panel with the message
+    panel = Panel(
+        text,
+        title="[bold]Kodexa CLI Error[/bold]",
+        border_style="red",
+        padding=(1, 2)
+    )
+    
+    console.print(panel)
+
 LOGGING_LEVELS = {
     0: logging.NOTSET,
     1: logging.ERROR,
@@ -160,7 +198,7 @@ def get_current_kodexa_profile() -> str:
     except Exception as e:
         logging.debug(f"Error getting current profile: {str(e)}")
         return ""
-
+        
 
 def get_current_kodexa_url():
     try:
@@ -176,6 +214,41 @@ def get_current_access_token():
         return KodexaPlatform.get_access_token(profile)
     except:
         return ""
+
+def config_check(url, token) -> bool:
+    if not url or not token:
+        from rich.console import Console
+        from rich.panel import Panel
+        from rich.markdown import Markdown
+        from rich.text import Text
+        
+        console = Console()
+        
+        # Create a styled message
+        message = Text()
+        message.append("\n🔐 ", style="bold yellow")
+        message.append("Authentication Required", style="bold red")
+        message.append("\n\nYour Kodexa profile is not configured or is misconfigured.")
+        message.append("\n\nTo proceed, you need to authenticate with the Kodexa platform.")
+        message.append("\n\nRun the following command to login:")
+        message.append("\n\n", style="bold")
+        message.append("kodexa login", style="bold green")
+        message.append("\n\nFor more information, visit our documentation:")
+        message.append("\n", style="bold")
+        message.append("https://developer.kodexa.ai/guides/cli/authentication", style="bold blue")
+        
+        # Create a panel with the message
+        panel = Panel(
+            message,
+            title="[bold]Kodexa CLI Authentication[/bold]",
+            border_style="blue",
+            padding=(1, 2)
+        )
+        
+        console.print(panel)
+        return False
+    return True
+
 
 
 @contextmanager
@@ -303,7 +376,6 @@ def safe_entry_point() -> None:
     Wraps the main CLI execution to provide:
     - Exception handling with user-friendly error messages
     - Execution timing information
-    - Version checking against PyPI
     - Profile information display
 
     Returns:
@@ -318,32 +390,28 @@ def safe_entry_point() -> None:
         # Record the starting time of the function execution
         start_time = datetime.now().replace(microsecond=0)
 
-        cli_version = metadata.version("kodexa")
-
-        # Check Pypi for the latest version
         try:
-            latest_version = seq(["https://pypi.org/pypi/kodexa/json"]).map(
-                lambda url: json.loads(requests.get(url).text)
-            ).map(lambda data: data["info"]["version"]).first()
-
-            if latest_version != cli_version:
-                print(
-                    f"New version of Kodexa CLI available: {latest_version} (you have {cli_version})"
-                )
-        except:
-            print("Unable to check for latest version")
-
-        try:
-            print(f"Using profile {get_current_kodexa_profile()} @ {get_current_kodexa_url()}\n")
-        except:
-            print("Unable to load profile")
+            current_kodexa_profile = get_current_kodexa_profile()
+            current_kodexa_url = get_current_kodexa_url()
+            if current_kodexa_profile and current_kodexa_url:
+                print(f"Using profile {current_kodexa_profile} @ {current_kodexa_url}\n")
+        except Exception as e:
+            print_error_message(
+                "Profile Error",
+                "Unable to load your Kodexa profile.",
+                str(e)
+            )
 
         # Call the cli() function
         cli()
     except Exception as e:
         # If an exception occurs, mark success as False and print the exception
         success = False
-        print(f"\n:fire: [red][bold]Failed[/bold]: {e}[/red]")
+        print_error_message(
+            "Command Failed",
+            "The command could not be completed successfully.",
+            str(e)
+        )
     finally:
         # If the execution was successful
         if success and not GLOBAL_IGNORE_COMPLETE:
@@ -395,9 +463,15 @@ def get(
 ) -> None:
     """List instances of a component or entity type.
     """
+
+    if not config_check(url, token):
+        return
+
     if not object_type:
         print_available_object_types()
         return
+    
+    
 
     # Handle file output setup
     def save_to_file(data, output_format=None):
@@ -858,6 +932,9 @@ def query(
 ) -> None:
     """Query and manipulate documents in a document store.
     """
+    if not config_check(url, token):
+        return
+
     client = KodexaClient(url=url, access_token=token)
     from kodexa.platform.client import DocumentStoreEndpoint
 
@@ -1020,13 +1097,20 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str) 
     Returns:
         None
     """
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         project = client.get_project(project_id)
         client.export_project(project, output)
         print("Project exported successfully")
     except Exception as e:
-        print(f"Error exporting project: {str(e)}")
+        print_error_message(
+            "Export Failed",
+            f"Could not export project {project_id}.",
+            str(e)
+        )
         sys.exit(1)
 
 
@@ -1044,7 +1128,11 @@ def import_project(_: Info, path: str, url: str, token: str) -> None:
         client.import_project(path)
         print("Project imported successfully")
     except Exception as e:
-        print(f"Error importing project: {str(e)}")
+        print_error_message(
+            "Import Failed",
+            f"Could not import project from {path}.",
+            str(e)
+        )
         sys.exit(1)
 
 
@@ -1057,12 +1145,20 @@ def import_project(_: Info, path: str, url: str, token: str) -> None:
 @pass_info
 def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
     """Bootstrap a model by creating metadata and example implementation."""
+    
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         client.create_project(project_id)
         print("Project bootstrapped successfully")
     except Exception as e:
-        print(f"Error bootstrapping project: {str(e)}")
+        print_error_message(
+            "Bootstrap Failed",
+            f"Could not bootstrap project {project_id}.",
+            str(e)
+        )
         sys.exit(1)
 
 
@@ -1088,6 +1184,10 @@ def manifest(
     - undeploy: Remove resources defined in the manifest
     - sync: Synchronize resources with the manifest
     """
+
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         manifest_manager = ManifestManager(client)
@@ -1121,6 +1221,10 @@ def send_event(
         token: str,
 ) -> None:
     """Send an event to the Kodexa server."""
+
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         try:
@@ -1145,6 +1249,10 @@ def send_event(
 )
 def platform(_: Info, python: bool, show_token: bool) -> None:
     """Get details about the connected Kodexa platform instance."""
+
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
         info = client.get_platform()
@@ -1164,6 +1272,9 @@ def platform(_: Info, python: bool, show_token: bool) -> None:
 @pass_info
 def delete(_: Info, ref: str, url: str, token: str, yes: bool) -> None:
     """Delete a resource from the Kodexa platform."""
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         client.get_object_by_ref(ref).delete()
@@ -1307,14 +1418,22 @@ def version(_: Info) -> None:
 @cli.command()
 @pass_info
 def profiles(_: Info) -> None:
-    """List all available profiles with their URLs."""
+    """List all profiles."""
     try:
         profiles = KodexaPlatform.list_profiles()
+        if not profiles:
+            print("No profiles found")
+            return
+
         for profile in profiles:
             url = KodexaPlatform.get_url(profile)
             print(f"{profile}: {url}")
     except Exception as e:
-        print(f"Error listing profiles: {str(e)}")
+        print_error_message(
+            "Profile Error",
+            "Could not list profiles.",
+            str(e)
+        )
         sys.exit(1)
 
 
@@ -1595,46 +1714,57 @@ def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: i
     """Upload a file to the Kodexa platform.
     """
 
-    client = KodexaClient(url=url, access_token=token)
-    document_store = client.get_object_by_ref("store", ref)
+    if not config_check(url, token):
+        return
 
-    from kodexa.platform.client import DocumentStoreEndpoint
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        document_store = client.get_object_by_ref("store", ref)
 
-    print(f"Uploading {len(paths)} files to {ref}\n")
-    if isinstance(document_store, DocumentStoreEndpoint):
-        from rich.progress import track
+        from kodexa.platform.client import DocumentStoreEndpoint
 
-        def upload_file(path, external_data):
-            try:
-                if external_data:
-                    external_data_path = f"{os.path.splitext(path)[0]}.json"
-                    if os.path.exists(external_data_path):
-                        with open(external_data_path, "r") as f:
-                            external_data = json.load(f)
-                            document_store.upload_file(path, external_data=external_data)
-                            return f"Successfully uploaded {path} with external data {json.dumps(external_data)}"
+        print(f"Uploading {len(paths)} files to {ref}\n")
+        if isinstance(document_store, DocumentStoreEndpoint):
+            from rich.progress import track
+
+            def upload_file(path, external_data):
+                try:
+                    if external_data:
+                        external_data_path = f"{os.path.splitext(path)[0]}.json"
+                        if os.path.exists(external_data_path):
+                            with open(external_data_path, "r") as f:
+                                external_data = json.load(f)
+                                document_store.upload_file(path, external_data=external_data)
+                                return f"Successfully uploaded {path} with external data {json.dumps(external_data)}"
+                        else:
+                            return f"External data file not found for {path}"
                     else:
-                        return f"External data file not found for {path}"
-                else:
-                    document_store.upload_file(path)
-                    return f"Successfully uploaded {path}"
-            except Exception as e:
-                return f"Error uploading {path}: {e}"
+                        document_store.upload_file(path)
+                        return f"Successfully uploaded {path}"
+                except Exception as e:
+                    return f"Error uploading {path}: {e}"
 
-        from concurrent.futures import ThreadPoolExecutor
+            from concurrent.futures import ThreadPoolExecutor
 
-        # Using ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            upload_args = [(path, external_data) for path in paths]
-            for result in track(
-                    executor.map(lambda args: upload_file(*args), upload_args),
-                    total=len(paths),
-                    description="Uploading files",
-            ):
-                print(result)
-        print("Upload complete :tada:")
-    else:
-        print(f"{ref} is not a document store")
+            # Using ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=threads) as executor:
+                upload_args = [(path, external_data) for path in paths]
+                for result in track(
+                        executor.map(lambda args: upload_file(*args), upload_args),
+                        total=len(paths),
+                        description="Uploading files",
+                ):
+                    print(result)
+            print("Upload complete :tada:")
+        else:
+            print(f"{ref} is not a document store")
+    except Exception as e:
+        print_error_message(
+            "Upload Failed",
+            f"Could not upload files to {ref}.",
+            str(e)
+        )
+        sys.exit(1)
 
 
 @cli.command()
@@ -1666,6 +1796,9 @@ def deploy(
     """
     Deploy a component to a Kodexa platform instance from a file or stdin
     """
+
+    if not config_check(url, token):
+        return
 
     client = KodexaClient(access_token=token, url=url)
 
@@ -1776,6 +1909,9 @@ def deploy(
 @pass_info
 def logs(_: Info, execution_id: str, url: str, token: str) -> None:
     """Get the logs for a specific execution."""
+    if not config_check(url, token):
+        return
+
     try:
         client = KodexaClient(url=url, access_token=token)
         logs_data = client.executions.get(execution_id).logs
@@ -1796,7 +1932,68 @@ def logs(_: Info, execution_id: str, url: str, token: str) -> None:
 def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str) -> None:
     """Download the implementation of a model store.
     """
+
+    if not config_check(url, token):
+        return
     # We are going to download the implementation of the component
-    client = KodexaClient(url=url, access_token=token)
-    model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)
-    model_store_endpoint.download_implementation(output_file)
+    try:  
+        client = KodexaClient(url=url, access_token=token)
+        model_store_endpoint: ModelStoreEndpoint = client.get_object_by_ref("store", ref)  
+        model_store_endpoint.download_implementation(output_file)  
+        print(f"Implementation downloaded successfully to {output_file}")  
+    except Exception as e:  
+        print_error_message(  
+        "Download Failed",  
+        f"Could not download implementation for {ref}.",  
+        str(e)  
+        )  
+        sys.exit(1)  
+
+@cli.command()
+@click.argument("path", required=True)
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@pass_info
+def validate_manifest(_: Info, path: str, url: str, token: str) -> None:
+    """Validate a manifest file."""
+    if not config_check(url, token):
+        return
+
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.validate_manifest(path)
+        print("Manifest is valid")
+    except Exception as e:
+        print_error_message(
+            "Validation Failed",
+            f"Could not validate manifest at {path}.",
+            str(e)
+        )
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("path", required=True)
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@pass_info
+def deploy_manifest(_: Info, path: str, url: str, token: str) -> None:
+    """Deploy a manifest file."""
+    if not config_check(url, token):
+        return
+
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        client.deploy_manifest(path)
+        print("Manifest deployed successfully")
+    except Exception as e:
+        print_error_message(
+            "Deployment Failed",
+            f"Could not deploy manifest from {path}.",
+            str(e)
+        )
+        sys.exit(1)
