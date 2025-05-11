@@ -1,5 +1,10 @@
 name: Kodexa CLI Python Package
 
+permissions:
+  contents: write
+  packages: read
+  id-token: read
+
 on:
   push:
     branches:
