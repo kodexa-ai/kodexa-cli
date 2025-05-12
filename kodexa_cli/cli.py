@@ -1882,17 +1882,6 @@ def deploy(
             raise Exception("You must provide a format if using stdin")
 
         deploy_obj(obj)
-    else:
-        print("Reading from file", file)
-        with open(file, "r") as f:
-            if file.lower().endswith(".json"):
-                obj = json.load(f)
-            elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
-                obj = yaml.safe_load(f)
-            else:
-                raise Exception("Unsupported file type")
-
-            deploy_obj(obj)
 
     print("Deployed :tada:")
 
