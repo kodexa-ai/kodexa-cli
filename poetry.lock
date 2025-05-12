@@ -430,14 +430,14 @@ urllib3 = ">=2.0.0,<3.0.0"
 
 [[package]]
 name = "kodexa-document"
-version = "8.0.1.post1746986432"
+version = "8.0.14978954371"
 description = "Python SDK for the Kodexa Document Database (KDDB)"
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 files = [
-    {file = "kodexa_document-8.0.1.post1746986432-py3-none-any.whl", hash = "sha256:933c722523baf2573196230f5118d3760b4f896caa9b298d0e01103fa31f07a1"},
-    {file = "kodexa_document-8.0.1.post1746986432.tar.gz", hash = "sha256:9ef8d869dbeb3ae6d769b680f3ab57eb4bcc4d7c1a1da248f56226d59c0a9072"},
+    {file = "kodexa_document-8.0.14978954371-py3-none-any.whl", hash = "sha256:16253df7eef3ca092dfb0f4e780582d4ce1811f6bd79c64043ee0dea63445f8c"},
+    {file = "kodexa_document-8.0.14978954371.tar.gz", hash = "sha256:43f184463c6aab8690fd86dfd1447a9373f3b5643b60c4ebcddb103d38ab6abd"},
 ]
 
 [package.dependencies]
