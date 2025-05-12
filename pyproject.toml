@@ -10,7 +10,7 @@ packages = [{include = "kodexa_cli"}]
 kodexa = 'kodexa_cli.cli:safe_entry_point'
 
 [tool.poetry.dependencies]
-python = ">=3.11, <3.14"
+python = ">=3.12, <3.14"
 kodexa = "~8.0.0"
 click = ">8.0.0"
 PyYAML = ">5.0"
