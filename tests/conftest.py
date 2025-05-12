@@ -3,6 +3,12 @@ from click.testing import CliRunner
 from unittest.mock import patch, MagicMock
 
 @pytest.fixture
+def mock_config_check():
+    """Mock config_check function to always return True."""
+    with patch('kodexa_cli.cli.config_check', return_value=True) as mock:
+        yield mock
+
+@pytest.fixture
 def mock_kodexa_platform():
     """Mock KodexaPlatform class methods."""
     with patch('kodexa_cli.cli.KodexaPlatform') as mock:

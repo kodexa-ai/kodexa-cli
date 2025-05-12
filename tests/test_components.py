@@ -1,7 +1,7 @@
 import pytest
 from kodexa_cli.cli import cli
 
-def test_logs(cli_runner, mock_kodexa_client):
+def test_logs(cli_runner, mock_kodexa_client, mock_config_check):
     """Test viewing logs."""
     result = cli_runner.invoke(cli, ['logs', 'test-component'])
     assert result.exit_code == 0
