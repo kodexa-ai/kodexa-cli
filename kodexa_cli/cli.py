@@ -897,6 +897,9 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint_page: A
     "--delete/--no-delete", default=False, help="Delete the matching document families"
 )
 @click.option(
+    "--starting-offset", default=None, help="Starting offset for the streaming query", type=int
+)
+@click.option(
     "--reprocess", default=None, help="Reprocess using the provided assistant ID"
 )
 @click.option("--add-label", default=None, help="Add a label to the matching document families")
@@ -930,6 +933,7 @@ def query(
         filter: None,
         reprocess: Optional[str] = None,
         add_label: Optional[str] = None,
+        starting_offset: Optional[int] = None,
         remove_label: Optional[str] = None,
         delete: bool = False,
         stream: bool = False,
@@ -956,12 +960,12 @@ def query(
                 if filter:
                     print(f"Streaming filter: {query_str}\n")
                     page_of_document_families = document_store.stream_filter(
-                        query_str, sort, limit, threads
+                        query_str, sort, limit, threads, starting_offset=starting_offset    
                     )
                 else:
                     print(f"Streaming query: {query_str}\n")
                     page_of_document_families = document_store.stream_query(
-                        query_str, sort, limit, threads
+                        query_str, sort, limit, threads, starting_offset=starting_offset
                     )
             else:
                 if filter:
