@@ -879,6 +879,12 @@ def print_object_table(object_metadata: dict[str, Any], objects_endpoint_page: A
     default=False,
     help="Stream the document families, don't paginate",
 )
+@click.option(
+    "--download-extracted-data/--no-download-extracted-data", default=False, help="Download the extracted data for the matching document families"
+)
+@click.option(
+    "--project-id", default=None, help="The project ID to use for the extracted data"
+)
 @click.option("--page", default=1, help="Page number")
 @click.option("--pageSize", default=10, help="Page size", type=int)
 @click.option(
