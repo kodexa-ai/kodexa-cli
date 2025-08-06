@@ -1057,6 +1057,10 @@ def query(
                                 f.write(doc_family.get_native())
                                 
                         if download_extracted_data:
+                            if Path(doc_family.path + "-extracted_data.json").exists():
+                                print(f"Extracted data already exists for {doc_family.path}")
+                                continue
+                            
                             print(f"Downloading extracted data for {doc_family.path}")
                             # We want to write a JSON file with the extracted data
                             with open(doc_family.path + "-extracted_data.json", "w") as f:
