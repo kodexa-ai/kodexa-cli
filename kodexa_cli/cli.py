@@ -917,6 +917,7 @@ def query(
         token: str,
         download: bool,
         download_native: bool,
+        download_extracted_data: bool,
         page: int,
         pagesize: int,
         sort: None,
@@ -929,6 +930,7 @@ def query(
         threads: int = 5,
         limit: Optional[int] = None,
         watch: Optional[int] = None,
+        project_id: Optional[str] = None,
 ) -> None:
     """Query and manipulate documents in a document store.
     """
@@ -1047,6 +1049,12 @@ def query(
                             )
                             with open(doc_family.path + ".native", "wb") as f:
                                 f.write(doc_family.get_native())
+                                
+                        if download_extracted_data:
+                            print(f"Downloading extracted data for {doc_family.path}")
+                            # We want to write a JSON file with the extracted data
+                            with open(doc_family.path + "-extracted_data.json", "w") as f:
+                                json.dump(doc_family.get_extracted_data(project_id=project_id), f)
 
                         if delete:
                             print(f"Deleting {doc_family.path}")
