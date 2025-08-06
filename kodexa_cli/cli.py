@@ -1054,7 +1054,7 @@ def query(
                             print(f"Downloading extracted data for {doc_family.path}")
                             # We want to write a JSON file with the extracted data
                             with open(doc_family.path + "-extracted_data.json", "w") as f:
-                                json.dump(doc_family.get_extracted_data(project_id=project_id), f)
+                                f.write(doc_family.get_json(project_id=project_id, friendly_names=False, include_ids=True, include_exceptions=True, inline_audits=False))
 
                         if delete:
                             print(f"Deleting {doc_family.path}")
