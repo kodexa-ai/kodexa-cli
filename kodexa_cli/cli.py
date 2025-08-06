@@ -1042,47 +1042,49 @@ def query(
                 print(f"Reprocessing with assistant {assistant.name}")
 
             if stream:
+                position = starting_offset if starting_offset else 0
                 print(f"Streaming document families (with {threads} threads)")
                 with concurrent.futures.ThreadPoolExecutor(
                         max_workers=threads
                 ) as executor:
 
                     def process_family(doc_family: DocumentFamilyEndpoint) -> None:
+                        position += 1
                         if download:
-                            print(f"Downloading document for {doc_family.path}")
+                            print(f"Downloading document for {doc_family.path} (position {position})")
                             doc_family.get_document().to_kddb().save(
                                 doc_family.path + ".kddb"
                             )
                         if download_native:
                             print(
-                                f"Downloading native object for {doc_family.path}"
+                                f"Downloading native object for {doc_family.path} (position {position})"
                             )
                             with open(doc_family.path + ".native", "wb") as f:
                                 f.write(doc_family.get_native())
                                 
                         if download_extracted_data:
                             if Path(doc_family.path + "-extracted_data.json").exists():
-                                print(f"Extracted data already exists for {doc_family.path}")
+                                print(f"Extracted data already exists for {doc_family.path} (position {position})")
                             else:
-                                print(f"Downloading extracted data for {doc_family.path}")
+                                print(f"Downloading extracted data for {doc_family.path} (position {position})")
                                 # We want to write a JSON file with the extracted data
                                 with open(doc_family.path + "-extracted_data.json", "w") as f:
                                     f.write(doc_family.get_json(project_id=project_id, friendly_names=False, include_ids=True, include_exceptions=True, inline_audits=False))
 
                         if delete:
-                            print(f"Deleting {doc_family.path}")
+                            print(f"Deleting {doc_family.path} (position {position})")
                             doc_family.delete()
 
                         if reprocess is not None:
-                            print(f"Reprocessing {doc_family.path}")
+                            print(f"Reprocessing {doc_family.path} (position {position})")
                             doc_family.reprocess(assistant)
 
                         if add_label is not None:
-                            print(f"Adding label {add_label} to {doc_family.path}")
+                            print(f"Adding label {add_label} to {doc_family.path} (position {position})")
                             doc_family.add_label(add_label)
 
                         if remove_label is not None:
-                            print(f"Removing label {remove_label} from {doc_family.path}")
+                            print(f"Removing label {remove_label} from {doc_family.path} (position {position})")
                             doc_family.remove_label(remove_label)
 
                     executor.map(process_family, document_families)
