@@ -1059,12 +1059,11 @@ def query(
                         if download_extracted_data:
                             if Path(doc_family.path + "-extracted_data.json").exists():
                                 print(f"Extracted data already exists for {doc_family.path}")
-                                continue
-                            
-                            print(f"Downloading extracted data for {doc_family.path}")
-                            # We want to write a JSON file with the extracted data
-                            with open(doc_family.path + "-extracted_data.json", "w") as f:
-                                f.write(doc_family.get_json(project_id=project_id, friendly_names=False, include_ids=True, include_exceptions=True, inline_audits=False))
+                            else:
+                                print(f"Downloading extracted data for {doc_family.path}")
+                                # We want to write a JSON file with the extracted data
+                                with open(doc_family.path + "-extracted_data.json", "w") as f:
+                                    f.write(doc_family.get_json(project_id=project_id, friendly_names=False, include_ids=True, include_exceptions=True, inline_audits=False))
 
                         if delete:
                             print(f"Deleting {doc_family.path}")
