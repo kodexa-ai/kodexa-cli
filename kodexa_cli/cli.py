@@ -36,6 +36,7 @@ from rich.prompt import Confirm
 import concurrent.futures
 import csv
 import better_exceptions
+import time
 better_exceptions.hook()
 
 logging.root.addHandler(logging.StreamHandler(sys.stdout))
@@ -1120,9 +1121,36 @@ def query(
                                 print(f"Extracted data already exists for {doc_family.path} (position {position})")
                             else:
                                 print(f"Downloading extracted data for {doc_family.path} (position {position})")
-                                # We want to write a JSON file with the extracted data
-                                with open(doc_family.path + "-extracted_data.json", "w") as f:
-                                    f.write(doc_family.get_json(project_id=project_id, friendly_names=False, include_ids=True, include_exceptions=True, inline_audits=False))
+                                # Retry logic for downloading and writing extracted data
+                                max_retries = 3
+                                retry_delay = 2  # seconds
+                                
+                                for attempt in range(max_retries):
+                                    try:
+                                        # Get the JSON data
+                                        json_data = doc_family.get_json(
+                                            project_id=project_id, 
+                                            friendly_names=False, 
+                                            include_ids=True, 
+                                            include_exceptions=True, 
+                                            inline_audits=False
+                                        )
+                                        
+                                        # Write the JSON file with the extracted data
+                                        with open(doc_family.path + "-extracted_data.json", "w") as f:
+                                            f.write(json_data)
+                                        
+                                        # Success - break out of retry loop
+                                        break
+                                        
+                                    except Exception as e:
+                                        if attempt < max_retries - 1:
+                                            print(f"  Retry {attempt + 1}/{max_retries} failed for {doc_family.path}: {str(e)}")
+                                            print(f"  Waiting {retry_delay} seconds before retrying...")
+                                            time.sleep(retry_delay)
+                                        else:
+                                            print(f"  Failed to download extracted data for {doc_family.path} after {max_retries} attempts: {str(e)}")
+                                            raise
 
                         if delete:
                             print(f"Deleting {doc_family.path} (position {position})")
