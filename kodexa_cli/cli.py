@@ -34,6 +34,7 @@ from kodexa.platform.client import (
 from rich import print
 from rich.prompt import Confirm
 import concurrent.futures
+import csv
 import better_exceptions
 better_exceptions.hook()
 
@@ -1978,6 +1979,191 @@ def validate_manifest(_: Info, path: str, url: str, token: str) -> None:
         print_error_message(
             "Validation Failed",
             f"Could not validate manifest at {path}.",
+            str(e)
+        )
+        sys.exit(1)
+
+
+@cli.command("model-costs")
+@click.option(
+    "--filter", 
+    "filters",
+    multiple=True,
+    help="Filter expression for model costs (e.g., \"createdOn > dateMath('now - 1 day')\")"
+)
+@click.option(
+    "--csv", 
+    "output_csv",
+    is_flag=True,
+    help="Output as CSV format instead of table"
+)
+@click.option(
+    "--output-file",
+    help="File path to save the output (CSV or table format)"
+)
+@click.option(
+    "--url", 
+    default=get_current_kodexa_url(), 
+    help="The URL to the Kodexa server"
+)
+@click.option(
+    "--token", 
+    default=get_current_access_token(), 
+    help="Access token"
+)
+@pass_info
+def model_costs(
+    _: Info,
+    filters: tuple[str],
+    output_csv: bool,
+    output_file: Optional[str],
+    url: str,
+    token: str
+) -> None:
+    """Get model costs with optional filtering and export capabilities.
+    
+    Examples:
+        kodexa model-costs
+        kodexa model-costs --filter "createdOn > dateMath('now - 1 day')"
+        kodexa model-costs --csv --output-file costs.csv
+        kodexa model-costs --filter "modelId = 'gpt-4'" --csv
+    """
+    if not config_check(url, token):
+        return
+
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        
+        # Convert filters tuple to list if provided
+        filter_list = list(filters) if filters else None
+        
+        # Get model costs from the API
+        model_costs = client.model_costs.get_model_costs(filters=filter_list)
+        
+        if not model_costs:
+            print("No model costs found for the specified filters.")
+            return
+        
+        # Handle CSV output
+        if output_csv:
+            import io
+            output = io.StringIO()
+            
+            # Define CSV headers based on AggregatedModelCost fields
+            headers = [
+                "Model ID",
+                "Model Name", 
+                "Total Tokens",
+                "Total Input Tokens",
+                "Total Output Tokens",
+                "Total Cost",
+                "Count"
+            ]
+            
+            writer = csv.writer(output)
+            writer.writerow(headers)
+            
+            # Write data rows
+            for cost in model_costs:
+                row = [
+                    cost.model_id if hasattr(cost, 'model_id') else "",
+                    cost.model_name if hasattr(cost, 'model_name') else "",
+                    cost.total_tokens if hasattr(cost, 'total_tokens') else 0,
+                    cost.total_input_tokens if hasattr(cost, 'total_input_tokens') else 0,
+                    cost.total_output_tokens if hasattr(cost, 'total_output_tokens') else 0,
+                    f"${cost.total_cost:.4f}" if hasattr(cost, 'total_cost') else "$0.0000",
+                    cost.count if hasattr(cost, 'count') else 0
+                ]
+                writer.writerow(row)
+            
+            csv_content = output.getvalue()
+            
+            # Output to file or stdout
+            if output_file:
+                with open(output_file, 'w', newline='') as f:
+                    f.write(csv_content)
+                print(f"Model costs exported to {output_file}")
+            else:
+                # Output to stdout
+                print(csv_content, end='')
+                global GLOBAL_IGNORE_COMPLETE
+                GLOBAL_IGNORE_COMPLETE = True
+        
+        # Handle table output (default)
+        else:
+            from rich.table import Table
+            from rich.console import Console
+            
+            table = Table(title="Model Costs", title_style="bold blue")
+            table.add_column("Model ID", style="cyan")
+            table.add_column("Model Name", style="green")
+            table.add_column("Total Tokens", justify="right", style="yellow")
+            table.add_column("Input Tokens", justify="right", style="yellow")
+            table.add_column("Output Tokens", justify="right", style="yellow")
+            table.add_column("Total Cost", justify="right", style="magenta")
+            table.add_column("Count", justify="right", style="white")
+            
+            # Calculate totals
+            total_tokens = 0
+            total_input = 0
+            total_output = 0
+            total_cost = 0.0
+            total_count = 0
+            
+            for cost in model_costs:
+                tokens = cost.total_tokens if hasattr(cost, 'total_tokens') else 0
+                input_tokens = cost.total_input_tokens if hasattr(cost, 'total_input_tokens') else 0
+                output_tokens = cost.total_output_tokens if hasattr(cost, 'total_output_tokens') else 0
+                cost_value = cost.total_cost if hasattr(cost, 'total_cost') else 0.0
+                count = cost.count if hasattr(cost, 'count') else 0
+                
+                total_tokens += tokens
+                total_input += input_tokens
+                total_output += output_tokens
+                total_cost += cost_value
+                total_count += count
+                
+                table.add_row(
+                    cost.model_id if hasattr(cost, 'model_id') else "",
+                    cost.model_name if hasattr(cost, 'model_name') else "",
+                    f"{tokens:,}",
+                    f"{input_tokens:,}",
+                    f"{output_tokens:,}",
+                    f"${cost_value:.4f}",
+                    f"{count:,}"
+                )
+            
+            # Add totals row
+            table.add_row(
+                "[bold]TOTAL[/bold]",
+                "",
+                f"[bold]{total_tokens:,}[/bold]",
+                f"[bold]{total_input:,}[/bold]",
+                f"[bold]{total_output:,}[/bold]",
+                f"[bold]${total_cost:.4f}[/bold]",
+                f"[bold]{total_count:,}[/bold]",
+                style="bold blue"
+            )
+            
+            console = Console()
+            
+            # Output to file or console
+            if output_file:
+                with open(output_file, 'w') as f:
+                    console_file = Console(file=f, force_terminal=False)
+                    console_file.print(table)
+                print(f"Model costs table saved to {output_file}")
+            else:
+                console.print(table)
+                
+                # Print filter information if provided
+                if filters:
+                    console.print(f"\nFilters applied: {', '.join(filters)}", style="dim")
+    
+    except Exception as e:
+        print_error_message(
+            "Failed to retrieve model costs",
+            "Could not fetch model costs from the server.",
             str(e)
         )
         sys.exit(1)
