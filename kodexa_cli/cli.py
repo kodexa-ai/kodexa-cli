@@ -960,12 +960,12 @@ def query(
                 if filter:
                     print(f"Streaming filter: {query_str}\n")
                     page_of_document_families = document_store.stream_filter(
-                        query_str, sort, limit, threads, starting_offset=starting_offset    
+                        query_str, sort, limit, threads, starting_offset=starting_offset if starting_offset else 0
                     )
                 else:
                     print(f"Streaming query: {query_str}\n")
                     page_of_document_families = document_store.stream_query(
-                        query_str, sort, limit, threads, starting_offset=starting_offset
+                        query_str, sort, limit, threads, starting_offset=starting_offset if starting_offset else 0
                     )
             else:
                 if filter:
