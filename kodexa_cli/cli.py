@@ -1095,14 +1095,14 @@ def query(
                 print(f"Reprocessing with assistant {assistant.name}")
 
             if stream:
-                position = starting_offset if starting_offset else 0
                 print(f"Streaming document families (with {threads} threads)")
                 with concurrent.futures.ThreadPoolExecutor(
                         max_workers=threads
                 ) as executor:
-
-                    def process_family(doc_family: DocumentFamilyEndpoint) -> None:
-                        position += 1
+                    def process_family(args) -> None:
+                        idx, doc_family = args
+                        position = starting_offset + idx + 1 if starting_offset else idx + 1
+                        
                         if download:
                             print(f"Downloading document for {doc_family.path} (position {position})")
                             doc_family.get_document().to_kddb().save(
@@ -1140,7 +1140,8 @@ def query(
                             print(f"Removing label {remove_label} from {doc_family.path} (position {position})")
                             doc_family.remove_label(remove_label)
 
-                    executor.map(process_family, document_families)
+                    # Use enumerate to pass index along with doc_family
+                    executor.map(process_family, enumerate(document_families))
 
         else:
             raise Exception("Unable to find document store with ref " + ref)
