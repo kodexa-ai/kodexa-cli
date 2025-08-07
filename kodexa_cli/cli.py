@@ -462,36 +462,30 @@ def get(
         output_path: Optional[str] = None,
         output_file: Optional[str] = None
 ) -> None:
-    """List or retrieve Kodexa platform components and entities.
+    """List or retrieve Kodexa platform objects.
     
     This command allows you to query and retrieve various types of objects from the Kodexa platform,
-    including extension packs, projects, assistants, stores, organizations, and more.
+    including assistants, stores, projects, organizations, and more.
     
-    OBJECT_TYPE: The type of object to retrieve (e.g., 'projects', 'assistants', 'stores').
-                 If not specified, displays a list of available object types.
-    
-    REF: Optional reference to a specific object. Can be:
-         - An object ID to retrieve a single item
-         - An organization slug to list items within that organization
-         - A full reference path (org/type/slug) for specific resources
+    Arguments:
+        OBJECT_TYPE: The type of object to retrieve (e.g., 'assistants', 'stores', 'projects')
+        REF: Optional reference ID or slug to get a specific object
     
     Examples:
-        kodexa get                                    # Show available object types
-        kodexa get projects                           # List all projects
-        kodexa get stores myorg                       # List stores in 'myorg' organization
-        kodexa get assistants myorg/assistant/helper  # Get specific assistant
-        kodexa get executions --query "status:FAILED" # Find failed executions
-        kodexa get stores --stream --delete           # Stream and delete stores
-        kodexa get projects --format json --output-file projects.json  # Export to file
-    
-    Query vs Filter:
-        --query: Use Lucene-style query syntax (default)
-        --filter: Use SQL-like filter expressions
-    
-    Output Formats:
-        Table (default): Human-readable table format
-        JSON: Machine-readable JSON format (--format json)
-        YAML: YAML format (--format yaml)
+        # List all assistants
+        kodexa get assistants
+        
+        # Get a specific project by ref
+        kodexa get projects my-org/my-project
+        
+        # Query stores with filtering
+        kodexa get stores --query "name:*test*"
+        
+        # Stream and delete matching objects (use with caution)
+        kodexa get documentFamily my-org --stream --delete
+        
+        # Export results to a file
+        kodexa get assistants --output-file assistants.json --format json
     """
 
     if not config_check(url, token):
@@ -972,41 +966,36 @@ def query(
         watch: Optional[int] = None,
         project_id: Optional[str] = None,
 ) -> None:
-    """Query, download, and manipulate documents in a document store.
+    """Query and manipulate documents in a document store.
     
-    This powerful command allows you to search for documents in a store and perform
-    various operations on the matching document families.
+    This powerful command allows you to search, download, modify, and manage documents
+    within a Kodexa document store. Supports batch operations and streaming for large datasets.
     
-    REF: Reference to the document store (e.g., 'myorg/store/documents')
-    
-    QUERY: Optional query string to filter documents. Use '*' to match all documents.
-           Multiple words will be joined with spaces.
+    Arguments:
+        REF: The reference to the document store (e.g., 'org-slug/store-slug')
+        QUERY: Optional query string to filter documents (default: '*' for all)
     
     Examples:
-        kodexa query myorg/store/docs                     # List all documents
-        kodexa query myorg/store/docs "invoice 2024"     # Search for invoices from 2024
-        kodexa query myorg/store/docs --download          # Download all as KDDB files
-        kodexa query myorg/store/docs --download-native   # Download original files
-        kodexa query myorg/store/docs --stream --delete   # Stream and delete all
-        kodexa query myorg/store/docs --add-label reviewed  # Add label to documents
-        kodexa query myorg/store/docs --reprocess assistant-id  # Reprocess with assistant
-        kodexa query myorg/store/docs --watch 30          # Auto-refresh every 30 seconds
-    
-    Download Options:
-        --download: Downloads documents in KDDB format
-        --download-native: Downloads original uploaded files
-        --download-extracted-data: Downloads extracted data as JSON
-    
-    Manipulation Options:
-        --add-label: Add a label to matching documents
-        --remove-label: Remove a label from matching documents
-        --reprocess: Reprocess documents with specified assistant
-        --delete: Delete matching documents (requires confirmation)
-    
-    Performance Options:
-        --stream: Process documents in streaming mode (better for large datasets)
-        --threads: Number of parallel threads for streaming operations
-        --limit: Maximum number of documents to process
+        # List all documents in a store
+        kodexa query my-org/my-store
+        
+        # Search for specific documents
+        kodexa query my-org/my-store "invoice*.pdf"
+        
+        # Download documents matching a query
+        kodexa query my-org/my-store "type:invoice" --download
+        
+        # Reprocess documents with a specific assistant
+        kodexa query my-org/my-store --stream --reprocess assistant-id
+        
+        # Add labels to matching documents
+        kodexa query my-org/my-store "status:pending" --add-label reviewed
+        
+        # Stream and delete documents (use with caution!)
+        kodexa query my-org/my-store "created:<2023-01-01" --stream --delete
+        
+        # Watch for new documents (refresh every 10 seconds)
+        kodexa query my-org/my-store --watch 10
     """
     if not config_check(url, token):
         return
@@ -1174,15 +1163,20 @@ def query(
 @pass_info
 def export_project(_: Info, project_id: str, url: str, token: str, output: str) -> None:
     """Export a project and associated resources to a local zip file.
-
-    Args:
-        project_id (str): ID of the project to export
-        url (str): URL of the Kodexa server
-        token (str): Access token for authentication
-        output (str): Path to save the exported zip file
-
-    Returns:
-        None
+    
+    Downloads a complete project including all its configurations, assistants,
+    stores, and other resources as a portable zip archive that can be imported
+    into another Kodexa instance.
+    
+    Arguments:
+        PROJECT_ID: The ID of the project to export (e.g., 'org-slug/project-slug')
+    
+    Examples:
+        # Export project to current directory
+        kodexa export-project my-org/my-project
+        
+        # Export to specific file
+        kodexa export-project my-org/my-project --output /path/to/backup.zip
     """
     if not config_check(url, token):
         return
@@ -1211,16 +1205,18 @@ def export_project(_: Info, project_id: str, url: str, token: str, output: str) 
 def import_project(_: Info, path: str, url: str, token: str) -> None:
     """Import a project and associated resources from a local zip file.
     
-    This command imports a previously exported project package, including all its
-    resources, configurations, and data.
+    Restores a previously exported project including all its configurations,
+    assistants, stores, and other resources from a zip archive.
     
-    PATH: Path to the project zip file to import
+    Arguments:
+        PATH: Path to the zip file containing the exported project
     
     Examples:
-        kodexa import-project myproject.zip       # Import project from zip file
-        kodexa import-project /exports/proj.zip   # Import from absolute path
-    
-    The zip file should be one created by the 'export-project' command.
+        # Import a project backup
+        kodexa import-project /path/to/project-backup.zip
+        
+        # Import to a different Kodexa instance
+        kodexa import-project backup.zip --url https://other.kodexa.ai
     """
     try:
         client = KodexaClient(url=url, access_token=token)
@@ -1245,20 +1241,18 @@ def import_project(_: Info, path: str, url: str, token: str) -> None:
 def bootstrap(_: Info, project_id: str, url: str, token: str) -> None:
     """Bootstrap a new project with default structure and configuration.
     
-    This command creates a new project with a standard structure, including
-    default metadata files and example implementations to help you get started quickly.
+    Creates a new project with example metadata, configurations, and a basic
+    implementation structure to help you get started quickly.
     
-    PROJECT_ID: Unique identifier for the new project
+    Arguments:
+        PROJECT_ID: The ID for the new project (e.g., 'org-slug/project-slug')
     
     Examples:
-        kodexa bootstrap my-new-project      # Create new project with ID 'my-new-project'
-        kodexa bootstrap invoice-processor   # Bootstrap an invoice processing project
-    
-    The bootstrap process will:
-    - Create the project in the Kodexa platform
-    - Set up default folder structure
-    - Generate example configuration files
-    - Create starter templates for common tasks
+        # Bootstrap a new project
+        kodexa bootstrap my-org/new-project
+        
+        # Bootstrap with specific profile
+        kodexa bootstrap my-org/ml-project --profile dev
     """
     
     if not config_check(url, token):
@@ -1292,12 +1286,32 @@ def manifest(
         url: str,
         token: str,
 ) -> None:
-    """Manage manifests in the Kodexa platform.
-
-    COMMAND can be one of:
-    - deploy: Deploy resources defined in the manifest
-    - undeploy: Remove resources defined in the manifest
-    - sync: Synchronize resources with the manifest
+    """Manage Kodexa manifests for infrastructure as code.
+    
+    Manifests allow you to define and manage entire Kodexa environments
+    declaratively. You can deploy, update, or remove resources in bulk.
+    
+    Arguments:
+        MANIFEST_PATH: Path to the manifest file
+        COMMAND: Operation to perform (deploy/undeploy/sync)
+    
+    Commands:
+        deploy: Create or update resources defined in the manifest
+        undeploy: Remove all resources defined in the manifest
+        sync: Synchronize local manifest with remote state
+    
+    Examples:
+        # Deploy a manifest (default command)
+        kodexa manifest production.yaml
+        
+        # Explicitly deploy
+        kodexa manifest staging.yaml deploy
+        
+        # Remove all resources in manifest
+        kodexa manifest old-env.yaml undeploy
+        
+        # Sync manifest with current platform state
+        kodexa manifest current.yaml sync
     """
 
     if not config_check(url, token):
@@ -1337,20 +1351,21 @@ def send_event(
 ) -> None:
     """Send a custom event to the Kodexa platform.
     
-    This command allows you to trigger custom events in the Kodexa platform,
-    which can be used to initiate workflows, notify systems, or trigger processing.
+    Triggers custom events for workflow automation, notifications,
+    or integration with external systems.
     
-    EVENT_ID: Unique identifier for the event
-    
-    Required Options:
-        --type: The event type (e.g., 'document.processed', 'workflow.trigger')
-        --data: JSON-formatted event data
+    Arguments:
+        EVENT_ID: Unique identifier for the event
     
     Examples:
-        kodexa send-event evt123 --type document.ready --data '{"docId": "abc"}'
-        kodexa send-event trigger1 --type workflow.start --data '{"workflow": "process-invoices"}'
-    
-    Note: The data must be valid JSON format.
+        # Send a simple event
+        kodexa send-event evt-123 --type notification --data '{"message":"Processing complete"}'
+        
+        # Send workflow trigger event
+        kodexa send-event workflow-001 --type trigger --data '{"action":"start","params":{}}'
+        
+        # Send integration event
+        kodexa send-event integration-xyz --type webhook --data '{"url":"https://api.example.com"}'
     """
 
     if not config_check(url, token):
@@ -1379,19 +1394,20 @@ def send_event(
     "--show-token/--no-show-token", default=False, help="Show access token"
 )
 def platform(_: Info, python: bool, show_token: bool) -> None:
-    """Display information about the connected Kodexa platform instance.
+    """Display information about the connected Kodexa platform.
     
-    Shows details about the current Kodexa platform connection, including
-    version information, API endpoints, and authentication status.
-    
-    Options:
-        --python: Output platform configuration as Python code
-        --show-token: Include the access token in the output (use with caution)
+    Shows details about the current Kodexa instance including version,
+    capabilities, and connection information.
     
     Examples:
-        kodexa platform                    # Show platform information
-        kodexa platform --python            # Generate Python connection code
-        kodexa platform --show-token        # Display with access token
+        # Show platform information
+        kodexa platform
+        
+        # Show with Python header format
+        kodexa platform --python
+        
+        # Include access token (careful with security)
+        kodexa platform --show-token
     """
 
     try:
@@ -1414,20 +1430,18 @@ def platform(_: Info, python: bool, show_token: bool) -> None:
 def delete(_: Info, ref: str, url: str, token: str, yes: bool) -> None:
     """Delete a resource from the Kodexa platform.
     
-    Permanently removes a resource (project, store, assistant, etc.) from the platform.
+    Permanently removes a resource (assistant, store, project, etc.) from the platform.
     This action cannot be undone.
     
-    REF: Reference to the resource to delete (e.g., 'myorg/store/documents')
-    
-    Options:
-        -y, --yes: Skip confirmation prompt (use with caution)
+    Arguments:
+        REF: The reference to the resource to delete (e.g., 'org/resource-slug')
     
     Examples:
-        kodexa delete myorg/project/old-project     # Delete a project (with confirmation)
-        kodexa delete myorg/store/temp-store -y     # Delete store without confirmation
-        kodexa delete myorg/assistant/test          # Delete an assistant
-    
-    Warning: Deletion is permanent and cannot be undone. All associated data will be lost.
+        # Delete with confirmation prompt
+        kodexa delete my-org/old-assistant
+        
+        # Delete without confirmation (use with caution!)
+        kodexa delete my-org/test-store --yes
     """
     if not config_check(url, token):
         return
@@ -1453,16 +1467,30 @@ def delete(_: Info, ref: str, url: str, token: str, yes: bool) -> None:
 )
 def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
     """Manage Kodexa platform profiles.
-
-    Args:
-        profile (str): Name of the profile to set or delete
-        delete (bool): Delete the specified profile if True
-        list (bool): List all available profiles if True
-
-    Returns:
-        None
-
-    If no arguments are provided, prints the current profile.
+    
+    Profiles allow you to maintain multiple sets of credentials for different
+    Kodexa instances or environments. You can switch between profiles to work
+    with different servers without re-authenticating each time.
+    
+    Arguments:
+        PROFILE: Optional name of the profile to set or delete
+    
+    Examples:
+        # Show current profile
+        kodexa profile
+        
+        # List all profiles
+        kodexa profile --list
+        
+        # Switch to a different profile
+        kodexa profile production
+        
+        # Delete a profile
+        kodexa profile old-dev --delete
+        
+        # Create and use a profile in other commands
+        kodexa --profile staging login
+        kodexa --profile staging get projects
     """
     if profile:
         try:
@@ -1507,27 +1535,23 @@ def profile(_: Info, profile: str, delete: bool, list: bool) -> None:
 @click.option("--output-path", default=".", help="The path to output the dataclasses")
 @click.option("--output-file", default="data_classes.py", help="The file to output the dataclasses to")
 def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str) -> None:
-    """Generate Python dataclasses from a Kodexa taxonomy file.
+    """Generate Python dataclasses from a taxonomy definition.
     
-    This command converts a taxonomy definition (JSON or YAML) into Python dataclasses
-    that can be used for type-safe data extraction and validation in your code.
+    Converts Kodexa taxonomy definitions (JSON/YAML) into Python dataclass
+    code for type-safe data extraction and processing.
     
-    TAXONOMY_FILE: Path to the taxonomy file (JSON or YAML format)
-    
-    Options:
-        --output-path: Directory where the generated file will be saved (default: current directory)
-        --output-file: Name of the generated Python file (default: data_classes.py)
+    Arguments:
+        TAXONOMY_FILE: Path to the taxonomy file (JSON or YAML)
     
     Examples:
-        kodexa dataclasses taxonomy.json                           # Generate from JSON
-        kodexa dataclasses taxonomy.yaml                           # Generate from YAML
-        kodexa dataclasses tax.json --output-path ./models         # Save to specific directory
-        kodexa dataclasses tax.yaml --output-file entities.py      # Use custom filename
-    
-    The generated dataclasses will include:
-    - Type annotations for all fields
-    - Validation logic based on taxonomy constraints
-    - Helper methods for serialization/deserialization
+        # Generate dataclasses from taxonomy
+        kodexa dataclasses taxonomy.json
+        
+        # Output to specific location
+        kodexa dataclasses taxonomy.yaml --output-path src/models
+        
+        # Custom output filename
+        kodexa dataclasses taxonomy.json --output-file invoice_models.py
     """
     if taxonomy_file is None:
         print("You must provide a taxonomy file")
@@ -1554,10 +1578,25 @@ def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str)
 @click.option("--token", default=None, help="Access token")
 def login(_: Info, url: Optional[str] = None, token: Optional[str] = None) -> None:
     """Log into a Kodexa platform instance.
-
-    After login, the access token is stored and used for all subsequent API calls.
-    If arguments are not provided, they will be prompted for interactively.
-    Use the global --profile option to specify which profile to create or update.
+    
+    Authenticates with a Kodexa platform instance and stores credentials for future use.
+    Supports multiple profiles for managing different environments (dev, staging, prod).
+    
+    If URL and token are not provided as options, you'll be prompted interactively.
+    The default URL is https://platform.kodexa.ai if not specified.
+    
+    Examples:
+        # Interactive login (recommended for security)
+        kodexa login
+        
+        # Login with parameters
+        kodexa login --url https://platform.kodexa.ai --token YOUR_TOKEN
+        
+        # Create a named profile
+        kodexa --profile dev login
+        
+        # Login to custom instance
+        kodexa login --url https://my-kodexa.company.com --token TOKEN
     """
     try:
         kodexa_url = url if url is not None else input("Enter the Kodexa URL (https://platform.kodexa.ai): ")
@@ -1584,10 +1623,14 @@ def login(_: Info, url: Optional[str] = None, token: Optional[str] = None) -> No
 @cli.command()
 @pass_info
 def version(_: Info) -> None:
-    """Get the installed version of the Kodexa CLI.
-
-    Returns:
-        None
+    """Display the installed version of Kodexa CLI and libraries.
+    
+    Shows version information for the Kodexa CLI and related packages.
+    Useful for troubleshooting and ensuring compatibility.
+    
+    Examples:
+        # Show version
+        kodexa version
     """
     print("Kodexa Version:", metadata.version("kodexa"))
 
@@ -1595,22 +1638,17 @@ def version(_: Info) -> None:
 @cli.command()
 @pass_info
 def profiles(_: Info) -> None:
-    """List all configured Kodexa platform profiles.
+    """List all configured Kodexa profiles.
     
-    Displays all available profiles with their associated platform URLs.
-    Profiles allow you to manage multiple Kodexa platform connections.
+    Displays all available profiles with their associated Kodexa instance URLs.
+    This is useful for seeing which environments you have configured.
     
     Examples:
-        kodexa profiles     # List all configured profiles
-    
-    Each profile stores:
-    - Platform URL
-    - Authentication token
-    - Default settings
-    
-    See also:
-        kodexa profile      # Manage individual profiles
-        kodexa login        # Create or update a profile
+        # List all profiles
+        kodexa profiles
+        
+    Output format:
+        profile-name: https://instance-url.kodexa.ai
     """
     try:
         profiles = KodexaPlatform.list_profiles()
@@ -1675,40 +1713,33 @@ def package(
         strip_version_build: bool = False,
         update_resource_versions: bool = True,
 ) -> None:
-    """Package Kodexa resources for deployment.
+    """Package Kodexa components for deployment.
     
-    This command packages extension packs, models, and other resources into
-    deployable artifacts. It processes kodexa.yml files and creates versioned
-    packages suitable for deployment to a Kodexa platform.
+    Creates deployment packages from kodexa.yml definitions, including support
+    for extension packs, model stores, and other component types. Can generate
+    Helm charts for Kubernetes deployments.
     
-    FILES: Optional list of metadata files to package (defaults to kodexa.yml)
-    
-    Options:
-        --path: Source directory containing resources (default: current directory)
-        --output: Output directory for packaged files (default: ./dist)
-        --version: Version number for the package (default: from VERSION env var or 1.0.0)
-        --package-name: Name for the package (required for model packaging)
-        --repository: Container repository name (default: kodexa)
-        --helm: Generate Helm charts for Kubernetes deployment
-        --strip-version-build: Remove build number from version (e.g., 1.0.0-123 becomes 1.0.0)
-        --update-resource-versions: Update all resources to match package version
+    Arguments:
+        FILES: Optional list of kodexa.yml files to package (default: kodexa.yml)
     
     Examples:
-        kodexa package                                      # Package using kodexa.yml
-        kodexa package kodexa.yml model.yml                 # Package multiple files
-        kodexa package --version 2.1.0                      # Set specific version
-        kodexa package --helm --package-name my-model       # Generate Helm chart
-        kodexa package --output /tmp/packages               # Custom output directory
-    
-    Supported Resource Types:
-        - Extension Packs: Actions, assistants, stores, pipelines
-        - Model Stores: Machine learning models with implementations
-        - Resource Packs: Collections of resources
-    
-    When using --helm, the command will:
-        1. Generate Helm charts for Kubernetes deployment
-        2. Create Docker build files
-        3. Provide deployment instructions
+        # Package current directory's kodexa.yml
+        kodexa package
+        
+        # Package with specific version
+        kodexa package --version 2.1.0
+        
+        # Package multiple components
+        kodexa package assistant.yml model.yml store.yml
+        
+        # Generate Helm chart for Kubernetes
+        kodexa package --helm --package-name my-app --version 1.0.0
+        
+        # Package to specific output directory
+        kodexa package --output /builds/latest
+        
+        # Strip build number from version
+        kodexa package --version 1.0.0-build123 --strip-version-build
     """
     if files is None or len(files) == 0:
         files = ["kodexa.yml"]
@@ -1939,32 +1970,31 @@ def package(
 @pass_info
 def upload(_: Info, ref: str, paths: list[str], token: str, url: str, threads: int,
            external_data: bool = False) -> None:
-    """Upload files to a document store in the Kodexa platform.
+    """Upload files to a document store.
     
-    Supports bulk uploading of documents with parallel processing for efficiency.
-    Can attach external metadata to documents during upload.
+    Uploads one or more files to a specified document store for processing.
+    Supports parallel uploads for better performance with large file sets.
     
-    REF: Reference to the target document store (e.g., 'myorg/store/documents')
-    PATHS: One or more file paths to upload
-    
-    Options:
-        --threads: Number of parallel upload threads (default: 5)
-        --external-data: Look for matching .json files with metadata to attach
+    Arguments:
+        REF: Reference to the target document store (e.g., 'org-slug/store-slug')
+        PATHS: One or more file paths to upload
     
     Examples:
-        kodexa upload myorg/store/docs file1.pdf                    # Upload single file
-        kodexa upload myorg/store/docs *.pdf                        # Upload multiple PDFs
-        kodexa upload myorg/store/docs /path/to/files/*             # Upload directory
-        kodexa upload myorg/store/docs *.pdf --threads 10           # Fast parallel upload
-        kodexa upload myorg/store/docs doc.pdf --external-data      # Upload with metadata
-    
-    External Data:
-        When --external-data is used, the command looks for a .json file with the
-        same base name as each uploaded file. For example:
-        - document.pdf -> document.json
-        - invoice.docx -> invoice.json
+        # Upload a single file
+        kodexa upload my-org/my-store document.pdf
         
-        The JSON file should contain metadata to attach to the document.
+        # Upload multiple files
+        kodexa upload my-org/my-store *.pdf *.docx
+        
+        # Upload with external metadata
+        kodexa upload my-org/my-store invoice.pdf --external-data
+        # (looks for invoice.json with metadata)
+        
+        # Upload with multiple threads for speed
+        kodexa upload my-org/my-store /path/to/files/* --threads 10
+        
+        # Upload all PDFs in a directory
+        kodexa upload my-org/documents ~/Documents/*.pdf
     """
 
     if not config_check(url, token):
@@ -2047,36 +2077,30 @@ def deploy(
 ) -> None:
     """Deploy components to a Kodexa platform instance.
     
-    Deploy one or more components (assistants, stores, actions, etc.) from
-    JSON or YAML files to the platform. Supports bulk deployment and updates.
+    Deploy one or more components (assistants, stores, models, etc.) from JSON/YAML
+    files or stdin. Supports batch deployment and metadata overlays for customization.
     
-    FILES: Component definition files (JSON or YAML). If not provided, reads from stdin.
-    
-    Options:
-        --org: Target organization slug
-        --format: Input format when reading from stdin (json or yaml)
-        --update: Update existing components instead of creating new ones
-        --version: Override the version specified in the file
-        --slug: Override the slug specified in the file
-        --overlay: Path to overlay file for merging additional metadata
+    Arguments:
+        FILES: One or more component definition files (JSON/YAML). If omitted, reads from stdin.
     
     Examples:
-        kodexa deploy assistant.json                        # Deploy single component
-        kodexa deploy *.yaml --org myorg                    # Deploy multiple to organization
-        kodexa deploy assistant.json --update               # Update existing component
-        kodexa deploy store.yaml --version 2.0.0            # Override version
-        cat component.json | kodexa deploy --format json    # Deploy from stdin
-        kodexa deploy comp.json --overlay custom.yaml       # Apply overlay configuration
-    
-    Component Types:
-        - Assistants: AI-powered document processors
-        - Stores: Document and data storage
-        - Actions: Processing actions and pipelines
-        - Models: Machine learning models
-        - Taxonomies: Classification hierarchies
-    
-    The --update flag allows you to modify existing components. Without it,
-    deployment will fail if a component with the same ID already exists.
+        # Deploy a single component
+        kodexa deploy assistant.json
+        
+        # Deploy multiple components
+        kodexa deploy *.yaml --org my-org
+        
+        # Update existing component
+        kodexa deploy model.json --update
+        
+        # Deploy with version override
+        kodexa deploy assistant.yaml --version 2.0.0
+        
+        # Deploy from stdin with pipe
+        cat component.json | kodexa deploy --format json
+        
+        # Apply metadata overlay
+        kodexa deploy base.json --overlay custom-config.yaml
     """
 
     if not config_check(url, token):
@@ -2179,23 +2203,20 @@ def deploy(
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
 def logs(_: Info, execution_id: str, url: str, token: str) -> None:
-    """Retrieve logs for a specific execution.
+    """Retrieve execution logs for debugging and monitoring.
     
-    Display the execution logs for debugging and monitoring purposes.
-    Useful for troubleshooting failed or problematic executions.
+    Fetches the complete log output from a specific execution,
+    useful for troubleshooting failed runs or monitoring progress.
     
-    EXECUTION_ID: The ID of the execution to retrieve logs for
+    Arguments:
+        EXECUTION_ID: The ID of the execution to get logs for
     
     Examples:
-        kodexa logs exec-12345                  # Get logs for execution
-        kodexa logs 8f7g9h0j-1234-5678-90ab      # Using full UUID
-    
-    The logs will show:
-        - Execution start and end times
-        - Processing steps and their status
-        - Error messages and stack traces
-        - Performance metrics
-        - Debug information
+        # Get logs for an execution
+        kodexa logs exec-abc123def456
+        
+        # Get logs from different environment
+        kodexa logs exec-xyz789 --profile production
     """
     if not config_check(url, token):
         return
@@ -2218,24 +2239,24 @@ def logs(_: Info, execution_id: str, url: str, token: str) -> None:
 @click.option("--token", default=get_current_access_token(), help="Access token")
 @pass_info
 def download_implementation(_: Info, ref: str, output_file: str, url: str, token: str) -> None:
-    """Download the implementation code of a model store.
+    """Download the implementation package of a model store.
     
-    Retrieves the implementation package (code, configs, dependencies) for a
-    model store, allowing you to run or modify the model locally.
+    Downloads the complete implementation of a model store including code,
+    configurations, and dependencies as a package that can be deployed elsewhere.
     
-    REF: Reference to the model store (e.g., 'myorg/store/my-model')
-    OUTPUT_FILE: Name for the downloaded file (default: 'model_implementation')
+    Arguments:
+        REF: Reference to the model store (e.g., 'org-slug/model-store-slug')
+        OUTPUT_FILE: Optional name for the output file (default: 'model_implementation')
     
     Examples:
-        kodexa download-implementation myorg/store/classifier           # Download with default name
-        kodexa download-implementation myorg/store/nlp-model model.zip  # Custom filename
-    
-    The downloaded package typically contains:
-        - Model implementation code
-        - Configuration files
-        - Requirements/dependencies
-        - Model weights (if applicable)
-        - Documentation
+        # Download with default filename
+        kodexa download-implementation my-org/my-model
+        
+        # Download to specific file
+        kodexa download-implementation my-org/my-model my-model-v2.zip
+        
+        # Download to specific path
+        kodexa download-implementation my-org/classifier /backups/classifier-backup
     """
 
     if not config_check(url, token):
@@ -2264,23 +2285,18 @@ def download_implementation(_: Info, ref: str, output_file: str, url: str, token
 def validate_manifest(_: Info, path: str, url: str, token: str) -> None:
     """Validate a Kodexa manifest file.
     
-    Checks a manifest file for syntax errors, missing required fields,
-    and compatibility with the target platform version.
+    Checks that a manifest file is correctly formatted and contains valid
+    resource definitions before deployment.
     
-    PATH: Path to the manifest file to validate
+    Arguments:
+        PATH: Path to the manifest file to validate
     
     Examples:
-        kodexa validate-manifest manifest.yaml      # Validate YAML manifest
-        kodexa validate-manifest deploy.json        # Validate JSON manifest
-    
-    The validation checks:
-        - Syntax correctness (valid JSON/YAML)
-        - Required fields presence
-        - Field type correctness
-        - Reference validity
-        - Version compatibility
-    
-    A successful validation means the manifest can be deployed.
+        # Validate a manifest
+        kodexa validate-manifest manifest.yaml
+        
+        # Validate against specific server
+        kodexa validate-manifest deployment.json --url https://staging.kodexa.ai
     """
     if not config_check(url, token):
         return
@@ -2493,29 +2509,18 @@ def model_costs(
 def deploy_manifest(_: Info, path: str, url: str, token: str) -> None:
     """Deploy resources defined in a manifest file.
     
-    Processes and deploys all resources defined in a manifest file to the platform.
-    A manifest can define multiple resources and their relationships.
+    Deploys all components and configurations defined in a Kodexa manifest file.
+    Manifests allow you to define entire projects or environments in a single file.
     
-    PATH: Path to the manifest file (JSON or YAML)
+    Arguments:
+        PATH: Path to the manifest file to deploy
     
     Examples:
-        kodexa deploy-manifest project-manifest.yaml    # Deploy project resources
-        kodexa deploy-manifest infrastructure.json      # Deploy infrastructure
-    
-    Manifest Structure:
-        A manifest typically contains:
-        - Resource definitions (assistants, stores, actions)
-        - Configuration settings
-        - Dependencies and relationships
-        - Deployment order specifications
-    
-    The deployment process will:
-        1. Validate the manifest
-        2. Check for existing resources
-        3. Deploy in dependency order
-        4. Report deployment status
-    
-    Note: Use 'validate-manifest' first to check for errors.
+        # Deploy a manifest
+        kodexa deploy-manifest production-manifest.yaml
+        
+        # Deploy to specific environment
+        kodexa deploy-manifest env/staging.json --profile staging
     """
     if not config_check(url, token):
         return
