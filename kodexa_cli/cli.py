@@ -1000,7 +1000,7 @@ def query(
     """
     if not config_check(url, token):
         return
-
+    
     client = KodexaClient(url=url, access_token=token)
     from kodexa.platform.client import DocumentStoreEndpoint
 
@@ -1094,82 +1094,81 @@ def query(
                     exit(1)
 
                 print(f"Reprocessing with assistant {assistant.name}")
-
+            
             if stream:
                 print(f"Streaming document families (with {threads} threads)")
-                with concurrent.futures.ThreadPoolExecutor(
-                        max_workers=threads
-                ) as executor:
-                    def process_family(args) -> None:
-                        idx, doc_family = args
-                        position = starting_offset + idx + 1 if starting_offset else idx + 1
-                        
-                        if download:
-                            print(f"Downloading document for {doc_family.path} (position {position})")
-                            doc_family.get_document().to_kddb().save(
-                                doc_family.path + ".kddb"
-                            )
-                        if download_native:
-                            print(
-                                f"Downloading native object for {doc_family.path} (position {position})"
-                            )
-                            with open(doc_family.path + ".native", "wb") as f:
-                                f.write(doc_family.get_native())
-                                
-                        if download_extracted_data:
-                            if Path(doc_family.path + "-extracted_data.json").exists():
-                                print(f"Extracted data already exists for {doc_family.path} (position {position})")
-                            else:
-                                print(f"Downloading extracted data for {doc_family.path} (position {position})")
-                                # Retry logic for downloading and writing extracted data
-                                max_retries = 3
-                                retry_delay = 2  # seconds
-                                
-                                for attempt in range(max_retries):
-                                    try:
-                                        # Get the JSON data
-                                        json_data = doc_family.get_json(
-                                            project_id=project_id, 
-                                            friendly_names=False, 
-                                            include_ids=True, 
-                                            include_exceptions=True, 
-                                            inline_audits=False
-                                        )
-                                        
-                                        # Write the JSON file with the extracted data
-                                        with open(doc_family.path + "-extracted_data.json", "w") as f:
-                                            f.write(json_data)
-                                        
-                                        # Success - break out of retry loop
-                                        break
-                                        
-                                    except Exception as e:
-                                        if attempt < max_retries - 1:
-                                            print(f"  Retry {attempt + 1}/{max_retries} failed for {doc_family.path}: {str(e)}")
-                                            print(f"  Waiting {retry_delay} seconds before retrying...")
-                                            time.sleep(retry_delay)
-                                        else:
-                                            print(f"  Failed to download extracted data for {doc_family.path} after {max_retries} attempts: {str(e)}")
-                                            raise
+            
+            with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=threads
+            ) as executor:
+                def process_family(args) -> None:
+                    idx, doc_family = args
+                    position = starting_offset + idx + 1 if starting_offset else idx + 1
+                    if download:
+                        print(f"Downloading document for {doc_family.path} (position {position})")
+                        doc_family.get_document().to_kddb(doc_family.path + ".kddb")
 
-                        if delete:
-                            print(f"Deleting {doc_family.path} (position {position})")
-                            doc_family.delete()
+                    if download_native:
+                        print(
+                            f"Downloading native object for {doc_family.path} (position {position})"
+                        )
+                        with open(doc_family.path + ".native", "wb") as f:
+                            f.write(doc_family.get_native())
+                            
+                    if download_extracted_data:
+                        if Path(doc_family.path + "-extracted_data.json").exists():
+                            print(f"Extracted data already exists for {doc_family.path} (position {position})")
+                        else:
+                            print(f"Downloading extracted data for {doc_family.path} (position {position})")
+                            # Retry logic for downloading and writing extracted data
+                            max_retries = 3
+                            retry_delay = 2  # seconds
+                            
+                            for attempt in range(max_retries):
+                                try:
+                                    # Get the JSON data
+                                    json_data = doc_family.get_json(
+                                        project_id=project_id, 
+                                        friendly_names=False, 
+                                        include_ids=True, 
+                                        include_exceptions=True, 
+                                        inline_audits=False
+                                    )
+                                    
+                                    # Write the JSON file with the extracted data
+                                    with open(doc_family.path + "-extracted_data.json", "w") as f:
+                                        f.write(json_data)
+                                    
+                                    # Success - break out of retry loop
+                                    break
+                                    
+                                except Exception as e:
+                                    if attempt < max_retries - 1:
+                                        print(f"  Retry {attempt + 1}/{max_retries} failed for {doc_family.path}: {str(e)}")
+                                        print(f"  Waiting {retry_delay} seconds before retrying...")
+                                        time.sleep(retry_delay)
+                                    else:
+                                        print(f"  Failed to download extracted data for {doc_family.path} after {max_retries} attempts: {str(e)}")
+                                        raise
 
-                        if reprocess is not None:
-                            print(f"Reprocessing {doc_family.path} (position {position})")
-                            doc_family.reprocess(assistant)
+                    if delete:
+                        print(f"Deleting {doc_family.path} (position {position})")
+                        doc_family.delete()
 
-                        if add_label is not None:
-                            print(f"Adding label {add_label} to {doc_family.path} (position {position})")
-                            doc_family.add_label(add_label)
+                    if reprocess is not None:
+                        print(f"Reprocessing {doc_family.path} (position {position})")
+                        doc_family.reprocess(assistant)
 
-                        if remove_label is not None:
-                            print(f"Removing label {remove_label} from {doc_family.path} (position {position})")
-                            doc_family.remove_label(remove_label)
+                    if add_label is not None:
+                        print(f"Adding label {add_label} to {doc_family.path} (position {position})")
+                        doc_family.add_label(add_label)
 
-                    # Use enumerate to pass index along with doc_family
-                    executor.map(process_family, enumerate(document_families))
+                    if remove_label is not None:
+                        print(f"Removing label {remove_label} from {doc_family.path} (position {position})")
+                        doc_family.remove_label(remove_label)
+                
+                # Use enumerate to pass index along with doc_family
+                executor.map(process_family, enumerate(document_families))                    
 
         else:
             raise Exception("Unable to find document store with ref " + ref)
