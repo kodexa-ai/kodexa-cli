@@ -1437,13 +1437,73 @@ def platform(_: Info, python: bool, show_token: bool) -> None:
         # Include access token (careful with security)
         kodexa platform --show-token
     """
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich.text import Text
+    from datetime import datetime
+    import re
 
     try:
+        console = Console()
+        
+        # Get platform information
         client = KodexaClient(url=get_current_kodexa_url(), access_token=get_current_access_token())
-        info = client.get_platform()
-        print(f"Platform information: {info}")
+        info = client.get("/api/overview").json()
+        
+        # Create header panel with platform name and release
+        header_text = Text()
+        platform_name = info.get('name', 'Kodexa')
+        release_name = info.get('release', '')
+        if release_name:
+            header_text.append(f"{platform_name} Platform - {release_name} Release\n", style="bold cyan")
+        else:
+            header_text.append(f"{platform_name} Platform\n", style="bold cyan")
+        header_text.append(f"URL: ", style="white")
+        header_text.append(f"{get_current_kodexa_url()}\n", style="green")
+        
+        if show_token:
+            header_text.append(f"Token: ", style="white")
+            header_text.append(f"{get_current_access_token()[:20]}...\n", style="yellow")
+        
+        header_panel = Panel(
+            header_text,
+            title="[bold]Platform Connection[/bold]",
+            border_style="blue"
+        )
+        console.print(header_panel)
+        
+        # Create main information table
+        table = Table(title="Platform Details", title_style="bold blue", show_header=True)
+        table.add_column("Property", style="cyan", width=25)
+        table.add_column("Value", style="white", width=100)
+        
+        # Add version information
+        table.add_row("Version", info.get('version', 'N/A'))
+        table.add_row("Environment", info.get('environment', 'N/A'))
+        
+        # Add build information
+        table.add_row("Build Time", info.get('buildTime', 'N/A'))
+        table.add_row("Commit ID", info.get('commitId', 'N/A'))
+        
+        # Add client version recommendation
+        rec_version = info.get('recommendedClientVersion', 'N/A')
+        table.add_row("Recommended Client", rec_version)
+        
+        # Display raw JSON if python flag is set
+        if python:
+            console.print("\n[bold cyan]Raw Response (Python dict):[/bold cyan]")
+            console.print(info)
+            
     except Exception as e:
-        print(f"Error getting platform info: {str(e)}")
+        console = Console()
+        error_panel = Panel(
+            f"[red]Error getting platform info:[/red]\n{str(e)}",
+            title="[bold]Platform Error[/bold]",
+            border_style="red",
+            padding=(1, 2)
+        )
+        console.print(error_panel)
         sys.exit(1)
 
 
@@ -2561,6 +2621,37 @@ def deploy_manifest(_: Info, path: str, url: str, token: str) -> None:
         print_error_message(
             "Deployment Failed",
             f"Could not deploy manifest from {path}.",
+            str(e)
+        )
+        sys.exit(1)
+
+@cli.command()
+@click.argument("project_id", required=True)
+@click.option(
+    "--url", default=get_current_kodexa_url(), help="The URL to the Kodexa server"
+)
+@click.option("--token", default=get_current_access_token(), help="Access token")
+@pass_info
+def get_project_template(_: Info, project_id: str, url: str, token: str) -> None:
+    """Get a project template.
+    
+    Get a project template by ID.
+    
+    Arguments:
+        PROJECT_ID: ID of the project to get the template for
+    """
+    try:
+        client = KodexaClient(url=url, access_token=token)
+        project = client.projects.get(project_id)
+        project_template = project.create_project_template_request()
+         
+        # Dump the pydantic model to YAML
+        yaml_content = yaml.dump(project_template.model_dump(by_alias=True), indent=4)
+        print(yaml_content)
+    except Exception as e:
+        print_error_message(
+            "Failed to get project template",
+            "Could not get project template for project ID: " + project_id,
             str(e)
         )
         sys.exit(1)
