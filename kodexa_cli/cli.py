@@ -1083,17 +1083,24 @@ def query(
             import concurrent.futures
 
             if reprocess is not None:
-                # We need to get the assistant so we can reprocess
-                assistant = client.assistants.get(reprocess)
-                if assistant is None:
-                    print(f"Unable to find assistant with id {reprocess}")
-                    exit(1)
-
+                
                 if not stream:
-                    print("You can't reprocess without streaming")
-                    exit(1)
+                        print("You can't reprocess without streaming")
+                        exit(1)
+                
+                if reprocess.lower() == "failed":
+                    print("We will reprocess the document with first failed assistant")
+                    assistant = "failed"
+                
+                else:
+                    # We need to get the assistant so we can reprocess
+                    assistant = client.assistants.get(reprocess)
+                    if assistant is None:
+                        print(f"Unable to find assistant with id {reprocess}")
+                        exit(1)
 
-                print(f"Reprocessing with assistant {assistant.name}")
+                    
+                print(f"Reprocessing with assistant {assistant.name if assistant != 'failed' else 'last failed assistant'}")
             
             if stream:
                 print(f"Streaming document families (with {threads} threads)")
@@ -1102,7 +1109,8 @@ def query(
                     max_workers=threads
             ) as executor:
                 def process_family(args) -> None:
-                    idx, doc_family = args
+                    idx, df = args
+                    doc_family: DocumentFamilyEndpoint = df
                     position = starting_offset + idx + 1 if starting_offset else idx + 1
                     if download:
                         print(f"Downloading document for {doc_family.path} (position {position})")
@@ -1157,7 +1165,17 @@ def query(
 
                     if reprocess is not None:
                         print(f"Reprocessing {doc_family.path} (position {position})")
-                        doc_family.reprocess(assistant)
+                        if assistant == "failed":
+                            if doc_family.statistics.recent_executions is None:
+                                print(f"Skipping reprocessing {doc_family.path} (position {position}) because it has no recent executions")
+                            else:
+                                for execution in doc_family.statistics.recent_executions:
+                                    if execution.execution.status == "FAILED":
+                                        print(f"Reprocessing {doc_family.path} (position {position}) with failed assistant {execution.assistant.name}")
+                                        doc_family.reprocess(execution.assistant)
+                                        break
+                        else:
+                            doc_family.reprocess(assistant)
 
                     if add_label is not None:
                         print(f"Adding label {add_label} to {doc_family.path} (position {position})")
