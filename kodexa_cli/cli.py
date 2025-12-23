@@ -1663,7 +1663,7 @@ def dataclasses(_: Info, taxonomy_file: str, output_path: str, output_file: str)
         print("You must provide a taxonomy file")
         exit(1)
 
-    with open(taxonomy_file, "r") as f:
+    with open(taxonomy_file, "r", encoding="utf-8") as f:
 
         if taxonomy_file.endswith(".json"):
             taxonomy = json.load(f)
@@ -2278,7 +2278,7 @@ def deploy(
         ):
             obj = {}
             file = files[idx]
-            with open(file, "r") as f:
+            with open(file, "r", encoding="utf-8") as f:
                 if file.lower().endswith(".json"):
                     obj.update(json.load(f))
                 elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
@@ -2297,6 +2297,15 @@ def deploy(
             raise Exception("You must provide a format if using stdin")
 
         deploy_obj(obj)
+    else:
+        print("Reading from file", file)
+        with open(file, "r", encoding="utf-8") as f:
+            if file.lower().endswith(".json"):
+                obj = json.load(f)
+            elif file.lower().endswith(".yaml") or file.lower().endswith(".yml"):
+                obj = yaml.safe_load(f)
+            else:
+                raise Exception("Unsupported file type")
 
     print("Deployed :tada:")
 
