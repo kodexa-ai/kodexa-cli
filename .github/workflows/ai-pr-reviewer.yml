@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: configure aws credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::449981209048:role/github-pr-bedrock-GitHubActionsServiceRole-IqalSBwrZUDZ
           role-session-name: gha-session
